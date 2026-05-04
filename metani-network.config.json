@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "updatedAt": "2026-05-04",
+  "mainnet": {
+    "chainId": 1229800785,
+    "chainIdHex": "0x494d4551",
+    "chainName": "iTani Network Chain",
+    "nativeCurrency": { "name": "ITANI", "symbol": "ITANI", "legacySymbols": ["ITN"], "decimals": 18 },
+    "rpcUrls": ["https://relay.itaninetworkchain.com/jsonrpc", "https://node.itaninetworkchain.com/jsonrpc"],
+    "restUrls": ["https://relay.itaninetworkchain.com", "https://node.itaninetworkchain.com"],
+    "blockExplorerUrls": ["https://explorer.itaninetworkchain.com", "https://node.itaninetworkchain.com/explorer"],
+    "faucetUrls": [],
+    "status": "production-candidate"
+  },
+  "testnet": {
+    "chainId": 1229800785,
+    "chainIdHex": "0x494d4551",
+    "chainName": "iTani Network Chain Testnet",
+    "nativeCurrency": { "name": "ITANI", "symbol": "ITANI", "legacySymbols": ["ITN"], "decimals": 18 },
+    "rpcUrls": ["https://testnet.itaninetworkchain.com/jsonrpc"],
+    "restUrls": ["https://testnet.itaninetworkchain.com"],
+    "blockExplorerUrls": ["https://testnet.itaninetworkchain.com/explorer"],
+    "faucetUrls": ["https://testnet.itaninetworkchain.com/faucet"],
+    "status": "testnet"
+  },
+  "deprecatedEndpoints": ["https://itani-network-chain-kirdnwz4rq-uc.a.run.app/jsonrpc", "https://itani-network-chain-1009642477948.us-central1.run.app"]
+}
