@@ -9,7 +9,7 @@ inc_wallet ne cree pas une identite separee. Il consomme le Metani ID central fo
 - connexion avec HudLife SSO;
 - reception ITANI via adresse wallet liee;
 - envoi ITANI via wallet externe EVM uniquement;
-- preparation staking de 1 a 100% du solde, bloque tant que le contrat/API staking n'est pas configure;
+- staking ITANI via `https://relay.itaninetworkchain.com/api/wallet/stake-tokens`;
 - acces iTaniSwap;
 - configuration reseau via `metani-network.config.json`.
 
@@ -34,5 +34,5 @@ npm run build
 - aucune mnemonic ne doit etre stockee dans le frontend;
 - les signatures et transactions passent par MetaMask, Trust Wallet, WalletConnect ou autre signer externe;
 - les endpoints Cloud Run deprecies sont interdits;
-- le staking reel reste desactive tant qu'un contrat/API audite n'est pas configure par variable d'environnement;
+- le staking signe `stake_tokens:{address}:{amount}` via un wallet externe avant envoi au relay;
 - PayPal ou fiat balance doit passer par webhooks serveur signes et ledger immuable avant production.

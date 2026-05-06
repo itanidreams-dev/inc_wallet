@@ -9,7 +9,9 @@ const SSO_USER_KEY = 'itani_sso_user';
 const HUDLIFE_PORTAL = (import.meta.env.VITE_HUDLIFE_PORTAL_URL || 'https://hudlife.itaninetworkchain.com').replace(/\/+$/, '');
 const HUDLIFE_SSO = (import.meta.env.VITE_HUDLIFE_SSO_URL || `${HUDLIFE_PORTAL}/api/sso`).replace(/\/+$/, '');
 const CLIENT_ID = import.meta.env.VITE_ITANI_SSO_CLIENT_ID || 'inc-wallet-web';
-const STAKING_ENDPOINT = import.meta.env.VITE_ITANI_STAKING_ENDPOINT || '';
+const STAKING_ENDPOINT =
+  import.meta.env.VITE_ITANI_STAKING_ENDPOINT ||
+  'https://relay.itaninetworkchain.com/api/wallet/stake-tokens';
 const activeNetwork = network.mainnet || network;
 const nativeCurrency = activeNetwork.nativeCurrency || network.nativeCurrency;
 
@@ -77,6 +79,12 @@ function toHexWei(amount) {
   const paddedFraction = `${fraction}000000000000000000`.slice(0, 18);
   const wei = BigInt(whole || '0') * 10n ** 18n + BigInt(paddedFraction || '0');
   return `0x${wei.toString(16)}`;
+}
+
+function toWeiString(amount) {
+  const [whole = '0', fraction = ''] = String(amount || '0').split('.');
+  const paddedFraction = `${fraction}000000000000000000`.slice(0, 18);
+  return (BigInt(whole || '0') * 10n ** 18n + BigInt(paddedFraction || '0')).toString();
 }
 
 async function ensureExternalWallet(address) {
@@ -193,25 +201,32 @@ function App() {
       return;
     }
 
-    if (!STAKING_ENDPOINT) {
-      setError('Staking reel non active: configure VITE_ITANI_STAKING_ENDPOINT apres audit du contrat/API staking.');
-      return;
-    }
-
     try {
+      const from = await ensureExternalWallet(walletAddress);
       const token = localStorage.getItem(SSO_TOKEN_KEY);
+      const amountWei = toWeiString(stakeAmount);
+      const stakeAddress = walletAddress || from;
+      const signature = await window.ethereum.request({
+        method: 'personal_sign',
+        params: [`stake_tokens:${stakeAddress}:${amountWei}`, from],
+      });
       const data = await fetchJson(STAKING_ENDPOINT, {
         method: 'POST',
         body: JSON.stringify({
           token,
-          amount: stakeAmount,
+          address: stakeAddress,
+          amount: amountWei,
           duration_days: stakeDuration,
           annual_rate_percent: stakeRate,
+          signature,
           asset: nativeCurrency.symbol,
         }),
       });
-      setTxHash(data.tx_hash || data.transactionHash || '');
-      setStatus('staking prepare');
+      if (data.success === false) {
+        throw new Error(data.error || 'Staking refuse par le relay iTani.');
+      }
+      setTxHash(data.tx_hash || data.transactionHash || data.message || '');
+      setStatus('staking envoye');
     } catch (err) {
       setError(err.message || 'Preparation staking impossible.');
     }
