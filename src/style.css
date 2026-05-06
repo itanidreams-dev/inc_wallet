@@ -484,6 +484,33 @@ input[type="range"] {
   gap: 16px;
 }
 
+.btcForm {
+  display: grid;
+  width: min(100%, 560px);
+  gap: 14px;
+}
+
+.btcQuote {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  border: 1px solid rgba(251, 191, 36, 0.28);
+  border-radius: 8px;
+  background: rgba(251, 191, 36, 0.08);
+  padding: 16px;
+}
+
+.btcQuote span,
+.btcQuote small {
+  color: var(--muted);
+}
+
+.btcQuote strong {
+  color: #fde68a;
+  font-size: clamp(1.8rem, 6vw, 3.2rem);
+  line-height: 1;
+}
+
 .qrMock {
   display: grid;
   width: min(100%, 260px);

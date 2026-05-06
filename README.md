@@ -10,6 +10,7 @@ inc_wallet ne cree pas une identite separee. Il consomme le Metani ID central fo
 - reception ITANI via adresse wallet liee;
 - envoi ITANI via wallet externe EVM uniquement;
 - staking ITANI via `https://relay.itaninetworkchain.com/api/wallet/stake-tokens`;
+- achat BTC/ITABTC au taux fixe `10 000 ITANI = 1 BTC` via JSON-RPC iTani;
 - acces iTaniSwap;
 - configuration reseau via `metani-network.config.json`.
 
@@ -35,4 +36,6 @@ npm run build
 - les signatures et transactions passent par MetaMask, Trust Wallet, WalletConnect ou autre signer externe;
 - les endpoints Cloud Run deprecies sont interdits;
 - le staking signe `stake_tokens:{address}:{amount}` via un wallet externe avant envoi au relay;
+- l'achat BTC signe `buy_btc:{address}:{amountWei}:{satoshis}` puis appelle `swap_iTani_for_itabtc`;
+- le retrait BTC L1 exige le bridge Bitcoin actif et une signature `btc_withdrawal:{btc_destination}:{satoshis}:{address}`;
 - PayPal ou fiat balance doit passer par webhooks serveur signes et ledger immuable avant production.

@@ -18,6 +18,7 @@ import {
   Network,
   RefreshCw,
   Repeat2,
+  Bitcoin,
   Send,
   ShieldCheck,
   Sparkles,
@@ -37,6 +38,9 @@ const STAKING_ENDPOINT =
   'https://relay.itaninetworkchain.com/api/wallet/stake-tokens';
 const activeNetwork = network.mainnet || network;
 const nativeCurrency = activeNetwork.nativeCurrency || network.nativeCurrency;
+const JSON_RPC_ENDPOINT = activeNetwork?.rpcUrls?.[0] || 'https://relay.itaninetworkchain.com/jsonrpc';
+const ITANI_PER_BTC = Number(import.meta.env.VITE_ITANI_BTC_RATE || 10000);
+const SATOSHIS_PER_BTC = 100000000;
 
 const tabs = [
   { id: 'home', label: 'Accueil', icon: Wallet },
@@ -104,6 +108,20 @@ async function fetchJson(url, options = {}) {
   return data;
 }
 
+async function jsonRpc(method, params = {}) {
+  const data = await fetchJson(JSON_RPC_ENDPOINT, {
+    method: 'POST',
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: Date.now(),
+      method,
+      params,
+    }),
+  });
+  if (data.error) throw new Error(data.error.message || 'Erreur JSON-RPC iTani');
+  return data.result;
+}
+
 async function verifySso(token) {
   const params = new URLSearchParams({ token, app: 'inc_wallet' });
   const data = await fetchJson(`${HUDLIFE_SSO}/verify?${params.toString()}`);
@@ -122,6 +140,16 @@ function toHexWei(amount) {
 function toWeiString(amount) {
   const [whole = '0', fraction = ''] = String(amount || '0').split('.');
   return (BigInt(whole || '0') * 10n ** 18n + BigInt(`${fraction}000000000000000000`.slice(0, 18) || '0')).toString();
+}
+
+function itaniToBtc(amount) {
+  const value = Number(amount || 0);
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  return value / ITANI_PER_BTC;
+}
+
+function btcToSatoshis(btcAmount) {
+  return Math.floor(Number(btcAmount || 0) * SATOSHIS_PER_BTC);
 }
 
 async function ensureExternalWallet(expectedAddress) {
@@ -144,7 +172,7 @@ async function ensureExternalWallet(expectedAddress) {
   const account = accounts?.[0];
   if (!account) throw new Error('Aucun compte wallet autorisé.');
 
-  if (expectedAddress && account.toLowerCase() !== expectedAddress.toLowerCase()) {
+  if (expectedAddress?.startsWith?.('0x') && account.toLowerCase() !== expectedAddress.toLowerCase()) {
     throw new Error('Le signer externe ne correspond pas au wallet lié au Metani ID.');
   }
 
@@ -213,6 +241,8 @@ function App() {
   const [amount, setAmount] = useState('');
   const [stakeAmount, setStakeAmount] = useState('');
   const [stakeDuration, setStakeDuration] = useState(30);
+  const [btcItaniAmount, setBtcItaniAmount] = useState('10000');
+  const [btcDestination, setBtcDestination] = useState('');
   const [txHash, setTxHash] = useState('');
   const [showBalance, setShowBalance] = useState(true);
   const [externalAccount, setExternalAccount] = useState('');
@@ -221,6 +251,8 @@ function App() {
   const walletAddress = user?.wallet_address || user?.address || '';
   const displayName = user?.display_name || user?.username || user?.pseudo || 'Compte Metani';
   const balanceValue = parseBalanceText(balance);
+  const btcQuote = useMemo(() => itaniToBtc(btcItaniAmount), [btcItaniAmount]);
+  const btcSatoshis = useMemo(() => btcToSatoshis(btcQuote), [btcQuote]);
   const stakeRate = useMemo(() => {
     const amountScore = Math.min(Math.max(Number(stakeAmount || 0) / 10000, 0), 1);
     const durationScore = Math.min(Math.max(Number(stakeDuration || 1) / 365, 0), 1);
@@ -358,6 +390,67 @@ function App() {
     }
   }
 
+  async function buyBtcWithItani(event) {
+    event.preventDefault();
+    setError('');
+    setTxHash('');
+
+    if (!btcItaniAmount || Number(btcItaniAmount) <= 0) {
+      setError('Montant ITANI requis pour acheter du BTC.');
+      return;
+    }
+
+    try {
+      const from = await ensureExternalWallet(walletAddress);
+      const amountWei = toWeiString(btcItaniAmount);
+      const address = walletAddress || from;
+      setStatus('signature achat BTC');
+      const signature = await window.ethereum.request({
+        method: 'personal_sign',
+        params: [`buy_btc:${address}:${amountWei}:${btcSatoshis}`, from],
+      });
+
+      setStatus('swap ITANI vers ITABTC');
+      const swap = await jsonRpc('swap_iTani_for_itabtc', {
+        address,
+        amount_iTani: amountWei,
+        signature,
+        fixed_rate: {
+          itani_per_btc: ITANI_PER_BTC,
+          btc_out: btcQuote.toFixed(8),
+          satoshis: String(btcSatoshis),
+        },
+      });
+
+      let detail = swap?.itabtc_out_btc
+        ? `Achat confirmé: ${swap.itabtc_out_btc} ITABTC`
+        : `Achat demandé: ${btcQuote.toFixed(8)} BTC`;
+
+      if (btcDestination.trim()) {
+        setStatus('demande retrait BTC');
+        const withdrawalSignature = await window.ethereum.request({
+          method: 'personal_sign',
+          params: [`btc_withdrawal:${btcDestination.trim()}:${btcSatoshis}:${address}`, from],
+        });
+        const withdrawal = await jsonRpc('request_btc_withdrawal', {
+          iTani_address: address,
+          satoshis: String(btcSatoshis),
+          btc_destination: btcDestination.trim(),
+          signature: withdrawalSignature,
+        });
+        detail = withdrawal?.tx_id || withdrawal?.status || detail;
+      }
+
+      setTxHash(detail);
+      setStatus('achat BTC envoyé');
+      writeActivity({ type: 'btc', title: `Achat BTC ${btcItaniAmount} ITANI`, detail });
+      setActivity(readJson(ACTIVITY_KEY, []));
+    } catch (err) {
+      setError(err.message || 'Achat BTC impossible.');
+      setStatus('prêt');
+    }
+  }
+
   if (!user) return <AuthScreen error={error} status={status} />;
 
   const tab = tabs.find((item) => item.id === activeTab) || tabs[0];
@@ -422,7 +515,7 @@ function App() {
               <div className="quickActions">
                 <button type="button" onClick={() => setActiveTab('send')}><Send size={18} /> Envoyer</button>
                 <button type="button" onClick={() => setActiveTab('receive')}><ArrowDownLeft size={18} /> Recevoir</button>
-                <button type="button" onClick={() => setActiveTab('swap')}><Repeat2 size={18} /> Swap</button>
+                <button type="button" onClick={() => setActiveTab('swap')}><Bitcoin size={18} /> Acheter BTC</button>
                 <button type="button" onClick={() => setActiveTab('stake')}><Sparkles size={18} /> Staking</button>
               </div>
             </section>
@@ -490,9 +583,24 @@ function App() {
 
         {activeTab === 'swap' ? (
           <section className="card swapCard">
-            <h2>iTaniSwap</h2>
-            <p>Accède au swap officiel pour échanger ITANI avec les tokens disponibles sur iTani Network Chain.</p>
-            <a className="primaryAction" href={activeNetwork.swapUrls?.[0] || 'https://hudlife.itaninetworkchain.com/swap'} target="_blank" rel="noreferrer">
+            <h2>Acheter BTC avec ITANI</h2>
+            <p>Taux fixe configuré: 10 000 ITANI = 1 BTC. Le swap crédite d’abord ITABTC/iWBTC sur iTani; le retrait BTC L1 dépend du bridge Bitcoin.</p>
+            <form className="btcForm" onSubmit={buyBtcWithItani}>
+              <label>Montant ITANI</label>
+              <div className="amountInput">
+                <input value={btcItaniAmount} onChange={(event) => setBtcItaniAmount(event.target.value)} inputMode="decimal" placeholder="10000" />
+                <span>ITANI</span>
+              </div>
+              <div className="btcQuote">
+                <span>Tu reçois</span>
+                <strong>{btcQuote.toFixed(8)} BTC</strong>
+                <small>{btcSatoshis.toLocaleString()} satoshis</small>
+              </div>
+              <label>Adresse BTC de retrait optionnelle</label>
+              <input value={btcDestination} onChange={(event) => setBtcDestination(event.target.value)} placeholder="bc1... ou 1... / 3..." />
+              <button className="primaryAction" type="submit">Signer l’achat BTC <Bitcoin size={18} /></button>
+            </form>
+            <a className="secondaryAction" href={activeNetwork.swapUrls?.[0] || 'https://hudlife.itaninetworkchain.com/swap'} target="_blank" rel="noreferrer">
               Ouvrir iTaniSwap <ExternalLink size={18} />
             </a>
           </section>
