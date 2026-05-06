@@ -1,20 +1,26 @@
 {
-  "name": "inc-wallet",
+  "name": "inc_wallet",
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "description": "Simple secure Metani/iTani wallet using HudLife SSO and external signers only.",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "config:validate": "node scripts/validate-config.js"
+    "config:validate": "node scripts/validate-network-config.cjs",
+    "security:check": "node scripts/security-check.cjs",
+    "test:e2e:plan": "node scripts/e2e-plan.cjs"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.0.0",
-    "vite": "^7.0.0",
+    "lucide-react": "^0.468.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "lucide-react": "^0.468.0"
+    "vite": "^7.0.0"
   },
   "devDependencies": {}
 }

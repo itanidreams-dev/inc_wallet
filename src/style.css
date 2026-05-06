@@ -112,6 +112,40 @@ h1 {
   gap: 12px;
 }
 
+.operation {
+  display: grid;
+  gap: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.38);
+  padding: 16px;
+}
+
+.operation h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.operation input {
+  min-height: 44px;
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.78);
+  color: #f8fafc;
+  padding: 0 12px;
+}
+
+.operation input[type="range"] {
+  padding: 0;
+}
+
+.rate {
+  margin: 0;
+  color: #67e8f9;
+  font-weight: 800;
+}
+
 .button {
   display: inline-flex;
   min-height: 46px;
@@ -144,6 +178,15 @@ h1 {
   border-radius: 8px;
   background: rgba(127, 29, 29, 0.32);
   color: #fecaca;
+  padding: 12px;
+}
+
+.success {
+  border: 1px solid rgba(45, 212, 191, 0.32);
+  border-radius: 8px;
+  background: rgba(20, 184, 166, 0.14);
+  color: #ccfbf1;
+  overflow-wrap: anywhere;
   padding: 12px;
 }
 

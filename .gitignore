@@ -6,3 +6,6 @@ dist/
 wallets.json
 *.key
 *.pem
+*.log
+.DS_Store
+.wrangler/
