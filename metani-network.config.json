@@ -1,0 +1,27 @@
+{
+  "chainId": 1229800785,
+  "chainName": "iTani Network Chain",
+  "nativeCurrency": {
+    "name": "ITANI",
+    "symbol": "ITANI",
+    "decimals": 18
+  },
+  "rpcUrls": [
+    "https://relay.itaninetworkchain.com/jsonrpc",
+    "https://node.itaninetworkchain.com/jsonrpc"
+  ],
+  "restUrls": [
+    "https://relay.itaninetworkchain.com",
+    "https://node.itaninetworkchain.com"
+  ],
+  "blockExplorerUrls": [
+    "https://explorer.itaninetworkchain.com"
+  ],
+  "testnet": {
+    "chainId": 1229800785,
+    "chainName": "iTani Network Chain Testnet",
+    "rpcUrls": [],
+    "restUrls": [],
+    "blockExplorerUrls": []
+  }
+}
