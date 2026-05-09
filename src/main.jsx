@@ -101,6 +101,7 @@ async function fetchJson(url, options = {}) {
       ...(options.body ? { 'Content-Type': 'application/json' } : {}),
       ...(options.headers || {}),
     },
+    credentials: 'include',
     ...options,
   });
   const data = await response.json().catch(() => ({}));
@@ -123,10 +124,15 @@ async function jsonRpc(method, params = {}) {
 }
 
 async function verifySso(token) {
-  const params = new URLSearchParams({ token, app: 'inc_wallet' });
+  const params = new URLSearchParams({ app: 'inc_wallet' });
+  if (token) {
+    params.set('token', token);
+  }
   const data = await fetchJson(`${HUDLIFE_SSO}/verify?${params.toString()}`);
   if (!data.valid || !data.user) throw new Error(data.error || 'Session HudLife invalide');
-  localStorage.setItem(SSO_TOKEN_KEY, token);
+  if (token) {
+    localStorage.setItem(SSO_TOKEN_KEY, token);
+  }
   localStorage.setItem(SSO_USER_KEY, JSON.stringify(data.user));
   return data;
 }
@@ -262,7 +268,6 @@ function App() {
   useEffect(() => {
     const incoming = getIncomingToken();
     const token = incoming || localStorage.getItem(SSO_TOKEN_KEY);
-    if (!token) return;
 
     setStatus('verification');
     verifySso(token)
