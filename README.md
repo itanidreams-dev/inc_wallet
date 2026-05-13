@@ -39,3 +39,19 @@ npm run build
 - l'achat BTC signe `buy_btc:{address}:{amountWei}:{satoshis}` puis appelle `swap_iTani_for_itabtc`;
 - le retrait BTC L1 exige le bridge Bitcoin actif et une signature `btc_withdrawal:{btc_destination}:{satoshis}:{address}`;
 - PayPal ou fiat balance doit passer par webhooks serveur signes et ledger immuable avant production.
+
+<!-- ITANI_PRODUCTION_SYNC_START -->
+
+## iTani Production Sync
+
+Last synchronized: 2026-05-13
+
+This app is tracked by the iTani production registry in iTani-Network-Chain-mainnet/deployment/apps.json.
+The current mainnet repository-side production gates are complete: 
+pm run ops:preflight passes and production:signoff reports 100% (12/12).
+
+Source of truth: https://github.com/itanidreams-dev/iTani-Network-Chain-mainnet/blob/main/PRODUCTION_100_SIGNOFF.md
+
+External public-production evidence still remains separate from code: external audit reference, real recovery drill timestamp, live watcher drill timestamp, external signer/Vault/KMS/HSM, and independent node/operator proof.
+
+<!-- ITANI_PRODUCTION_SYNC_END -->
