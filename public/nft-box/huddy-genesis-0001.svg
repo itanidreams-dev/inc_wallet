@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-labelledby="title desc">
+  <title id="title">Huddy Genesis 0001</title>
+  <desc id="desc">Metani Genesis Huddy NFT preview with alpha face, chrome body, and chain key.</desc>
+  <rect width="800" height="800" fill="#071016"/>
+  <rect x="70" y="70" width="660" height="660" rx="28" fill="#0f172a" stroke="#22d3ee" stroke-width="8"/>
+  <circle cx="400" cy="260" r="120" fill="#1e293b" stroke="#f472b6" stroke-width="10"/>
+  <rect x="250" y="380" width="300" height="230" rx="58" fill="#164e63" stroke="#2dd4bf" stroke-width="10"/>
+  <circle cx="350" cy="245" r="18" fill="#e0f2fe"/>
+  <circle cx="450" cy="245" r="18" fill="#e0f2fe"/>
+  <path d="M350 310 Q400 350 450 310" fill="none" stroke="#f8fafc" stroke-width="16" stroke-linecap="round"/>
+  <path d="M555 480 l55 -55 l48 48 l-55 55 l-18 -18 l-34 34 l-30 -30 l34 -34z" fill="#facc15"/>
+  <text x="400" y="690" fill="#f8fafc" font-family="Arial, sans-serif" font-size="42" text-anchor="middle">MGH #0001</text>
+</svg>

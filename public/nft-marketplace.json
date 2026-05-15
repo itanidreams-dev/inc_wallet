@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "status": "public-preview",
+  "source": "metani-nft-box",
+  "updated_at": "2026-05-15T00:00:00Z",
+  "generator": {
+    "name": "Huddy NFT Generator",
+    "mode": "trait-box-preview",
+    "repository": "C:\\Users\\itani\\Documents\\GitHub\\Huddy",
+    "inputs": ["face", "body", "object", "background", "accessory"],
+    "production_writes": false
+  },
+  "collections": [
+    {
+      "id": "metani-genesis-huddy",
+      "name": "Metani Genesis Huddy",
+      "symbol": "MGH",
+      "description": "Premiere collection publique preparee depuis les traits Huddy. Mint et achat verrouilles jusqu'a audit.",
+      "status": "preview",
+      "items": 3
+    }
+  ],
+  "listings": [
+    {
+      "id": "MGH-0001",
+      "name": "Huddy Genesis #0001",
+      "collection": "Metani Genesis Huddy",
+      "description": "NFT preview generable depuis le box de traits Metani.",
+      "price": "1000 ITANI",
+      "currency": "ITANI",
+      "status": "preview",
+      "image_url": "/nft-box/huddy-genesis-0001.svg",
+      "traits": [
+        { "trait_type": "Face", "value": "Alpha" },
+        { "trait_type": "Body", "value": "Chrome" },
+        { "trait_type": "Object", "value": "Chain Key" }
+      ]
+    },
+    {
+      "id": "MGH-0002",
+      "name": "Huddy Genesis #0002",
+      "collection": "Metani Genesis Huddy",
+      "description": "NFT preview compose avec visage, corps et objet depuis la NFT box.",
+      "price": "1250 ITANI",
+      "currency": "ITANI",
+      "status": "preview",
+      "image_url": "/nft-box/huddy-genesis-0002.svg",
+      "traits": [
+        { "trait_type": "Face", "value": "Neon" },
+        { "trait_type": "Body", "value": "Signal" },
+        { "trait_type": "Object", "value": "Reserve Orb" }
+      ]
+    },
+    {
+      "id": "MGH-0003",
+      "name": "Huddy Genesis #0003",
+      "collection": "Metani Genesis Huddy",
+      "description": "NFT preview pret pour raccord futur au generateur Huddy.",
+      "price": "1500 ITANI",
+      "currency": "ITANI",
+      "status": "preview",
+      "image_url": "/nft-box/huddy-genesis-0003.svg",
+      "traits": [
+        { "trait_type": "Face", "value": "Solar" },
+        { "trait_type": "Body", "value": "Validator" },
+        { "trait_type": "Object", "value": "Genesis Pass" }
+      ]
+    }
+  ]
+}

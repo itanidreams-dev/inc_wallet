@@ -45,6 +45,7 @@ const STAKING_ENDPOINT =
 const activeNetwork = network.mainnet || network;
 const nativeCurrency = activeNetwork.nativeCurrency || network.nativeCurrency;
 const JSON_RPC_ENDPOINT = activeNetwork?.rpcUrls?.[0] || 'https://relay.itaninetworkchain.com/jsonrpc';
+const NFT_BOX_ENDPOINT = import.meta.env.VITE_NFT_BOX_ENDPOINT || '/nft-marketplace.json';
 const ITANI_PER_BTC = Number(import.meta.env.VITE_ITANI_BTC_RATE || 10000);
 const SATOSHIS_PER_BTC = 100000000;
 const BRIDGE_READ_ONLY = true;
@@ -360,6 +361,7 @@ function App() {
   const [tokensInfo, setTokensInfo] = useState(null);
   const [nftCollections, setNftCollections] = useState(null);
   const [nftMarketplace, setNftMarketplace] = useState(null);
+  const [nftBox, setNftBox] = useState(null);
   const [walletInfo, setWalletInfo] = useState(null);
   const [addressHistory, setAddressHistory] = useState(null);
   const [walletNfts, setWalletNfts] = useState(null);
@@ -371,6 +373,8 @@ function App() {
   const balanceValue = parseBalanceText(balance);
   const btcQuote = useMemo(() => itaniToBtc(btcItaniAmount), [btcItaniAmount]);
   const btcSatoshis = useMemo(() => btcToSatoshis(btcQuote), [btcQuote]);
+  const collectionItems = nftCollections?.collections?.length ? nftCollections.collections : (nftBox?.collections || []);
+  const marketplaceItems = nftMarketplace?.listings?.length ? nftMarketplace.listings : (nftBox?.listings || []);
   const stakeRate = useMemo(() => {
     const amountScore = Math.min(Math.max(Number(stakeAmount || 0) / 10000, 0), 1);
     const durationScore = Math.min(Math.max(Number(stakeDuration || 1) / 365, 0), 1);
@@ -378,7 +382,7 @@ function App() {
   }, [stakeAmount, stakeDuration]);
 
   async function refreshChainData() {
-    const [chain, price, dynamic, staking, tokens, collections, marketplace] = await Promise.allSettled([
+    const [chain, price, dynamic, staking, tokens, collections, marketplace, nftBoxSeed] = await Promise.allSettled([
       jsonRpc('get_chain_info'),
       jsonRpc('oracle_get_price'),
       jsonRpc('get_dynamic_rate'),
@@ -386,6 +390,7 @@ function App() {
       jsonRpc('get_deployed_tokens'),
       jsonRpc('nft_collections'),
       jsonRpc('nft_marketplace'),
+      fetchJson(NFT_BOX_ENDPOINT),
     ]);
     if (chain.status === 'fulfilled') setChainInfo(pickResult(chain.value));
     if (price.status === 'fulfilled') setPriceInfo(pickResult(price.value));
@@ -394,6 +399,7 @@ function App() {
     if (tokens.status === 'fulfilled') setTokensInfo(pickResult(tokens.value));
     if (collections.status === 'fulfilled') setNftCollections(pickResult(collections.value));
     if (marketplace.status === 'fulfilled') setNftMarketplace(pickResult(marketplace.value));
+    if (nftBoxSeed.status === 'fulfilled') setNftBox(pickResult(nftBoxSeed.value));
   }
 
   async function refreshWalletData(address = walletAddress) {
@@ -891,11 +897,12 @@ function App() {
             </section>
             <section className="card">
               <h2>Collections</h2>
-              <ChainList items={nftCollections?.collections || []} empty="Aucune collection NFT enregistrée." />
+              <ChainList items={collectionItems} empty="Aucune collection NFT enregistrée." />
             </section>
             <section className="card wide">
               <h2>Marketplace NFT</h2>
-              <ChainList items={nftMarketplace?.listings || []} empty="Aucun NFT listé sur la marketplace." />
+              <p className="sectionNote">Listings publics depuis Metani NFT Box. Mint et achat réels restent verrouillés jusqu'à audit.</p>
+              <NftMarketplaceList items={marketplaceItems} empty="Aucun NFT listé sur la marketplace." />
             </section>
           </div>
         ) : null}
@@ -1012,6 +1019,53 @@ function ChainList({ items, empty }) {
             <strong>{shorten(String(title), 18, 10)}</strong>
             <small>{detail ? shorten(String(detail), 18, 12) : JSON.stringify(item).slice(0, 120)}</small>
           </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function NftMarketplaceList({ items, empty }) {
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) {
+    return (
+      <div className="emptyState compact">
+        <Image size={24} />
+        <strong>{empty}</strong>
+      </div>
+    );
+  }
+
+  return (
+    <div className="nftGrid">
+      {list.slice(0, 12).map((item, index) => {
+        const id = item.id || item.token_id || `nft-${index}`;
+        const title = item.name || item.token_id || id;
+        const traits = Array.isArray(item.traits) ? item.traits : [];
+        return (
+          <article className="nftCard" key={id}>
+            <div className="nftThumb">
+              {item.image_url ? <img src={item.image_url} alt={title} loading="lazy" /> : <Image size={42} />}
+            </div>
+            <div className="nftBody">
+              <div className="nftTitleLine">
+                <strong>{title}</strong>
+                <span className="statusBadge">{item.status || 'listed'}</span>
+              </div>
+              <small>{item.collection || item.contract_address || 'Metani NFT'}</small>
+              {item.description ? <p>{item.description}</p> : null}
+              {item.price ? <b>{item.price}</b> : null}
+              {traits.length ? (
+                <div className="traitPills">
+                  {traits.slice(0, 6).map((trait) => (
+                    <span key={`${id}-${trait.trait_type}-${trait.value}`}>
+                      {trait.trait_type}: {trait.value}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </article>
         );
       })}
     </div>

@@ -613,6 +613,94 @@ input[type="range"] {
   color: var(--muted);
 }
 
+.sectionNote {
+  margin-top: -6px;
+}
+
+.nftGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.nftCard {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.36);
+}
+
+.nftThumb {
+  display: grid;
+  aspect-ratio: 1;
+  place-items: center;
+  background: #020617;
+  color: var(--cyan);
+}
+
+.nftThumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.nftBody {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+}
+
+.nftTitleLine {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.nftTitleLine strong,
+.nftBody small,
+.nftBody p {
+  overflow-wrap: anywhere;
+}
+
+.nftBody small {
+  color: var(--muted);
+}
+
+.nftBody p {
+  margin: 0;
+  color: #cbd5e1;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.nftBody b {
+  color: #a7f3d0;
+}
+
+.statusBadge,
+.traitPills span {
+  border: 1px solid rgba(34, 211, 238, 0.24);
+  border-radius: 8px;
+  background: rgba(34, 211, 238, 0.1);
+  color: #cffafe;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 5px 7px;
+  text-transform: uppercase;
+}
+
+.traitPills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.traitPills span {
+  color: #e2e8f0;
+  text-transform: none;
+}
+
 .resultBox {
   max-height: 420px;
   overflow: auto;

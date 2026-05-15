@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-labelledby="title desc">
+  <title id="title">Huddy Genesis 0002</title>
+  <desc id="desc">Metani Genesis Huddy NFT preview with neon face, signal body, and reserve object.</desc>
+  <rect width="800" height="800" fill="#0b1020"/>
+  <rect x="70" y="70" width="660" height="660" rx="28" fill="#111827" stroke="#a3e635" stroke-width="8"/>
+  <circle cx="400" cy="255" r="118" fill="#312e81" stroke="#22d3ee" stroke-width="10"/>
+  <rect x="235" y="370" width="330" height="245" rx="70" fill="#155e75" stroke="#a3e635" stroke-width="10"/>
+  <rect x="318" y="222" width="55" height="28" rx="14" fill="#67e8f9"/>
+  <rect x="427" y="222" width="55" height="28" rx="14" fill="#67e8f9"/>
+  <path d="M342 305 C380 330 420 330 458 305" fill="none" stroke="#e0f2fe" stroke-width="15" stroke-linecap="round"/>
+  <circle cx="610" cy="465" r="54" fill="#f472b6"/>
+  <circle cx="610" cy="465" r="25" fill="#f8fafc"/>
+  <text x="400" y="690" fill="#f8fafc" font-family="Arial, sans-serif" font-size="42" text-anchor="middle">MGH #0002</text>
+</svg>
