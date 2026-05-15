@@ -26,16 +26,22 @@
       ecosystem_traceability: Boolean(options.traceability),
       accepted_at: new Date().toISOString(),
     };
-    localStorage.setItem(KEY, JSON.stringify(payload));
-    document.cookie = `${COOKIE}=${encodeURIComponent(JSON.stringify(payload))}; Max-Age=31536000; Path=/; Domain=${DOMAIN}; Secure; SameSite=Lax`;
+    try {
+      localStorage.setItem(KEY, JSON.stringify(payload));
+    } catch {}
+    try {
+      document.cookie = `${COOKIE}=${encodeURIComponent(JSON.stringify(payload))}; Max-Age=31536000; Path=/; Domain=${DOMAIN}; Secure; SameSite=Lax`;
+    } catch {}
     document.documentElement.classList.remove('itani-consent-locked');
+    document.body?.classList.remove('itani-consent-locked');
     document.getElementById('itani-consent-gate')?.remove();
   }
 
   function injectStyles() {
     const style = document.createElement('style');
     style.textContent = `
-      .itani-consent-locked body > *:not(#itani-consent-gate) {
+      html.itani-consent-locked body > *:not(#itani-consent-gate),
+      body.itani-consent-locked > *:not(#itani-consent-gate) {
         filter: blur(10px);
         pointer-events: none;
         user-select: none;
@@ -50,6 +56,10 @@
         background: rgba(2, 6, 23, 0.72);
         color: #f8fafc;
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        isolation: isolate;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        visibility: visible !important;
       }
       #itani-consent-gate .itani-consent-panel {
         width: min(760px, 100%);
@@ -108,7 +118,10 @@
   }
 
   function showGate() {
+    if (document.getElementById('itani-consent-gate')) return;
     injectStyles();
+    document.documentElement.classList.add('itani-consent-locked');
+    document.body?.classList.add('itani-consent-locked');
     const gate = document.createElement('div');
     gate.id = 'itani-consent-gate';
     gate.innerHTML = `
@@ -137,6 +150,7 @@
       </section>
     `;
     document.body.appendChild(gate);
+    window.setTimeout(() => gate.querySelector('button[data-primary="true"]')?.focus(), 0);
 
     let remaining = REQUIRED_DELAY;
     const countdown = gate.querySelector('#itani-consent-countdown');
@@ -147,7 +161,6 @@
         return;
       }
       window.clearInterval(timer);
-      document.documentElement.classList.add('itani-consent-locked');
       countdown.textContent = "Lecture terminee: choisis une option pour deverrouiller l'application.";
     }, 1000);
 
