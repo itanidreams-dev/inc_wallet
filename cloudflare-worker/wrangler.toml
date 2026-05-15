@@ -3,6 +3,7 @@ main = "src/worker.js"
 compatibility_date = "2026-05-15"
 
 routes = [
+  { pattern = "wallet.itaninetworkchain.com/*", zone_name = "itaninetworkchain.com" },
   { pattern = "app.itaninetworkchain.com/*", zone_name = "itaninetworkchain.com" }
 ]
 

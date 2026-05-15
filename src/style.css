@@ -107,6 +107,52 @@ a {
   line-height: 1.65;
 }
 
+.authModeSwitch {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.42);
+  padding: 5px;
+}
+
+.authModeSwitch button {
+  min-height: 40px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-weight: 850;
+}
+
+.authModeSwitch button.active {
+  background: rgba(34, 211, 238, 0.14);
+  color: var(--text);
+}
+
+.emailAuthForm {
+  display: grid;
+  gap: 12px;
+}
+
+.emailAuthForm label {
+  display: grid;
+  gap: 7px;
+}
+
+.authFieldsGrid,
+.ssoFallback {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ssoFallback .secondaryAction {
+  width: 100%;
+}
+
 .orbital {
   display: grid;
   width: 112px;
@@ -814,7 +860,9 @@ code {
   }
 
   .heroCard,
-  .searchLine {
+  .searchLine,
+  .authFieldsGrid,
+  .ssoFallback {
     grid-template-columns: 1fr;
   }
 

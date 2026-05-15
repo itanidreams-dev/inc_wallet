@@ -224,7 +224,33 @@ function pickResult(value, fallback = null) {
   return value && typeof value === 'object' ? value : fallback;
 }
 
-function AuthScreen({ error, status }) {
+function AuthScreen({ error, status, onEmailAuth }) {
+  const [mode, setMode] = useState('login');
+  const [form, setForm] = useState({
+    firstName: '',
+    lastName: '',
+    pseudo: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+  });
+  const [busy, setBusy] = useState(false);
+  const isRegister = mode === 'register';
+
+  function updateField(field, value) {
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  async function submitEmailAuth(event) {
+    event.preventDefault();
+    setBusy(true);
+    try {
+      await onEmailAuth(mode, form);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <main className="authShell">
       <section className="authCard">
@@ -253,14 +279,54 @@ function AuthScreen({ error, status }) {
             </div>
           </div>
           <h2>Commencer</h2>
-          <p>Crée ou connecte ton compte Metani pour gérer tes données blockchain iTani depuis une seule dApp.</p>
+          <p>Crée ou connecte ton compte Metani avec email et mot de passe. Aucun email de récupération n’est requis pour commencer.</p>
           {error ? <div className="alert error">{error}</div> : null}
-          <a className="primaryAction" href={getAuthUrl('register')}>
-            Créer mon Metani ID <ArrowRight size={18} />
-          </a>
-          <a className="secondaryAction" href={getAuthUrl('login')}>
-            J’ai déjà un compte
-          </a>
+          <div className="authModeSwitch" role="tablist" aria-label="Mode de connexion">
+            <button className={!isRegister ? 'active' : ''} type="button" onClick={() => setMode('login')}>Connexion</button>
+            <button className={isRegister ? 'active' : ''} type="button" onClick={() => setMode('register')}>Créer compte</button>
+          </div>
+          <form className="emailAuthForm" onSubmit={submitEmailAuth}>
+            {isRegister ? (
+              <div className="authFieldsGrid">
+                <label>
+                  Prénom
+                  <input value={form.firstName} onChange={(event) => updateField('firstName', event.target.value)} autoComplete="given-name" required />
+                </label>
+                <label>
+                  Nom
+                  <input value={form.lastName} onChange={(event) => updateField('lastName', event.target.value)} autoComplete="family-name" required />
+                </label>
+              </div>
+            ) : null}
+            {isRegister ? (
+              <label>
+                Pseudo optionnel
+                <input value={form.pseudo} onChange={(event) => updateField('pseudo', event.target.value)} autoComplete="nickname" />
+              </label>
+            ) : null}
+            <label>
+              Adresse email
+              <input value={form.email} onChange={(event) => updateField('email', event.target.value)} type="email" autoComplete="email" required />
+            </label>
+            <label>
+              Mot de passe
+              <input value={form.password} onChange={(event) => updateField('password', event.target.value)} type="password" autoComplete={isRegister ? 'new-password' : 'current-password'} minLength={8} required />
+            </label>
+            {isRegister ? (
+              <label>
+                Confirmer le mot de passe
+                <input value={form.confirmPassword} onChange={(event) => updateField('confirmPassword', event.target.value)} type="password" autoComplete="new-password" minLength={8} required />
+              </label>
+            ) : null}
+            <button className="primaryAction" type="submit" disabled={busy}>
+              {busy ? <Loader2 className="spin" size={18} /> : <ArrowRight size={18} />}
+              {isRegister ? 'Créer mon compte' : 'Me connecter'}
+            </button>
+          </form>
+          <div className="ssoFallback">
+            <a className="secondaryAction" href={getAuthUrl('register')}>Créer via HudLife</a>
+            <a className="secondaryAction" href={getAuthUrl('login')}>Connexion HudLife</a>
+          </div>
           <div className="statusLine">
             {status === 'verification' ? <Loader2 className="spin" size={16} /> : <BadgeCheck size={16} />}
             <span>{status === 'verification' ? 'Vérification SSO...' : 'Réseau iTani prêt'}</span>
@@ -340,6 +406,69 @@ function App() {
     if (info.status === 'fulfilled') setWalletInfo(pickResult(info.value));
     if (history.status === 'fulfilled') setAddressHistory(pickResult(history.value));
     if (nfts.status === 'fulfilled') setWalletNfts(pickResult(nfts.value));
+  }
+
+  async function applyAuthSession(data, source = 'email') {
+    const token = data.sso_token || data.token || data.session_token;
+    const account = data.user || data.profile || null;
+    if (!token) throw new Error('Le serveur n’a pas retourné de session valide.');
+    if (!account) throw new Error('Le serveur n’a pas retourné de compte utilisateur.');
+
+    localStorage.setItem(SSO_TOKEN_KEY, token);
+    localStorage.setItem(SSO_USER_KEY, JSON.stringify(account));
+    setUser(account);
+    setBalance(data.balance_formatted || `${data.balance || '0'} ${nativeCurrency.symbol}`);
+    await Promise.allSettled([
+      refreshChainData(),
+      refreshWalletData(account.wallet_address || account.address),
+    ]);
+    writeActivity({
+      type: source,
+      title: source === 'register' ? 'Compte Metani créé' : 'Compte Metani connecté',
+      detail: account.pseudo || account.email || account.wallet_address || account.address || 'Email/password',
+    });
+    setActivity(readJson(ACTIVITY_KEY, []));
+  }
+
+  async function handleEmailAuth(mode, form) {
+    const email = form.email.trim().toLowerCase();
+    const password = form.password;
+    if (!email || !password) throw new Error('Email et mot de passe requis.');
+    if (password.length < 8) throw new Error('Le mot de passe doit contenir au moins 8 caractères.');
+    if (mode === 'register' && password !== form.confirmPassword) {
+      throw new Error('Les deux mots de passe ne correspondent pas.');
+    }
+
+    setError('');
+    setStatus(mode === 'register' ? 'création compte' : 'connexion email');
+    try {
+      const endpoint = mode === 'register' ? '/api/auth/register' : '/api/auth/login';
+      const payload = mode === 'register'
+        ? {
+            app: 'inc_wallet',
+            first_name: form.firstName.trim(),
+            last_name: form.lastName.trim(),
+            pseudo: form.pseudo.trim() || undefined,
+            email,
+            password,
+          }
+        : {
+            app: 'inc_wallet',
+            email,
+            identifier: email,
+            password,
+          };
+      const data = await fetchJson(`${HUDLIFE_PORTAL}${endpoint}`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      await applyAuthSession(data, mode);
+      setStatus('prêt');
+    } catch (err) {
+      setError(err.message || 'Connexion impossible.');
+      setStatus('prêt');
+      throw err;
+    }
   }
 
   useEffect(() => {
@@ -559,7 +688,7 @@ function App() {
     }
   }
 
-  if (!user) return <AuthScreen error={error} status={status} />;
+  if (!user) return <AuthScreen error={error} status={status} onEmailAuth={handleEmailAuth} />;
 
   const tab = tabs.find((item) => item.id === activeTab) || tabs[0];
 

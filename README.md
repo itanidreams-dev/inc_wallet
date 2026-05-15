@@ -16,9 +16,10 @@ It combines:
 Production URLs:
 
 - Fly origin: `https://inc-wallet.fly.dev/`
-- Planned official domain: `https://app.itaninetworkchain.com/`
+- Active official domain: `https://wallet.itaninetworkchain.com/`
+- Planned app domain: `https://app.itaninetworkchain.com/`
 
-`app.itaninetworkchain.com` is served by the `itani-chain-app` Cloudflare Worker and must have a Cloudflare DNS record before it resolves publicly.
+`wallet.itaninetworkchain.com` is served by the `itani-chain-app` Cloudflare Worker today. `app.itaninetworkchain.com` is also declared in the Worker route, but it still needs a Cloudflare DNS record before it resolves publicly.
 
 Wallet simple pour l'ecosysteme Metani / iTani Network Chain.
 
@@ -26,7 +27,8 @@ inc_wallet ne cree pas une identite separee. Il consomme le Metani ID central fo
 
 ## Fonctionnalites
 
-- connexion avec HudLife SSO;
+- connexion avec email + mot de passe via l'API HudLife;
+- fallback HudLife SSO;
 - reception ITANI via adresse wallet liee;
 - envoi ITANI via wallet externe EVM uniquement;
 - staking ITANI via `https://relay.itaninetworkchain.com/api/wallet/stake-tokens`;
