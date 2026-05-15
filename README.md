@@ -1,4 +1,24 @@
-# inc_wallet
+# iTani Chain App / INC Wallet
+
+Official iTani Network Chain dApp.
+
+It combines:
+
+- Wallet connection with an external signer.
+- Chain dashboard: height, supply, ITANI price, TWAP, market cap, transactions.
+- Portfolio: wallet balance, address data, transaction history.
+- Tokens dashboard.
+- NFT dashboard and marketplace read-only views.
+- Staking flow.
+- Explorer search for addresses, transactions and blocks.
+- Bridge/BTC view locked in production until audit and custody signer approval.
+
+Production URLs:
+
+- Fly origin: `https://inc-wallet.fly.dev/`
+- Planned official domain: `https://app.itaninetworkchain.com/`
+
+`app.itaninetworkchain.com` is served by the `itani-chain-app` Cloudflare Worker and must have a Cloudflare DNS record before it resolves publicly.
 
 Wallet simple pour l'ecosysteme Metani / iTani Network Chain.
 

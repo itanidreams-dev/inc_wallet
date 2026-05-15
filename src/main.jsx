@@ -5,12 +5,18 @@ import {
   ArrowRight,
   ArrowUpRight,
   BadgeCheck,
+  BarChart3,
+  Blocks,
   ChevronRight,
+  Coins,
   Copy,
+  Database,
   ExternalLink,
   Eye,
   EyeOff,
+  Gauge,
   History,
+  Image,
   Layers,
   Loader2,
   LockKeyhole,
@@ -41,14 +47,18 @@ const nativeCurrency = activeNetwork.nativeCurrency || network.nativeCurrency;
 const JSON_RPC_ENDPOINT = activeNetwork?.rpcUrls?.[0] || 'https://relay.itaninetworkchain.com/jsonrpc';
 const ITANI_PER_BTC = Number(import.meta.env.VITE_ITANI_BTC_RATE || 10000);
 const SATOSHIS_PER_BTC = 100000000;
+const BRIDGE_READ_ONLY = true;
 
 const tabs = [
-  { id: 'home', label: 'Accueil', icon: Wallet },
+  { id: 'home', label: 'Dashboard', icon: BarChart3 },
+  { id: 'portfolio', label: 'Portfolio', icon: Wallet },
   { id: 'send', label: 'Envoyer', icon: ArrowUpRight },
   { id: 'receive', label: 'Recevoir', icon: ArrowDownLeft },
   { id: 'stake', label: 'Staking', icon: Sparkles },
-  { id: 'swap', label: 'Swap', icon: Repeat2 },
-  { id: 'network', label: 'Réseau', icon: Network },
+  { id: 'tokens', label: 'Tokens', icon: Coins },
+  { id: 'nfts', label: 'NFTs', icon: Image },
+  { id: 'explorer', label: 'Explorer', icon: Blocks },
+  { id: 'bridge', label: 'Bridge', icon: Repeat2 },
   { id: 'activity', label: 'Activité', icon: History },
 ];
 
@@ -190,6 +200,30 @@ function parseBalanceText(value) {
   return String(value).replace(/\s*ITANI\s*$/i, '').trim();
 }
 
+function formatUnits(value, decimals = 18, maxFraction = 4) {
+  if (value === undefined || value === null || value === '') return '0';
+  try {
+    const raw = BigInt(String(value));
+    const base = 10n ** BigInt(decimals);
+    const whole = raw / base;
+    const fraction = raw % base;
+    const fractionText = fraction.toString().padStart(decimals, '0').slice(0, maxFraction).replace(/0+$/, '');
+    return fractionText ? `${whole}.${fractionText}` : whole.toString();
+  } catch {
+    return String(value);
+  }
+}
+
+function compactNumber(value) {
+  const n = Number(String(value || 0).replace(/[^\d.-]/g, ''));
+  if (!Number.isFinite(n)) return String(value || '0');
+  return new Intl.NumberFormat('fr-FR', { notation: 'compact', maximumFractionDigits: 2 }).format(n);
+}
+
+function pickResult(value, fallback = null) {
+  return value && typeof value === 'object' ? value : fallback;
+}
+
 function AuthScreen({ error, status }) {
   return (
     <main className="authShell">
@@ -199,13 +233,13 @@ function AuthScreen({ error, status }) {
             <span><Wallet size={40} /></span>
           </div>
           <p className="eyebrow">iTani Network Chain</p>
-          <h1>Un wallet professionnel pour ton Metani ID</h1>
+          <h1>iTani Chain App</h1>
           <p>
-            Inscription, connexion, réception, envoi, staking et swap ITANI depuis une interface simple, sécurisée et mobile-first.
+            Wallet officiel, portfolio, explorer, tokens, NFTs, staking et données de valeur ITANI dans une interface simple et mobile-first.
           </p>
           <div className="trustList">
             <span><ShieldCheck size={16} /> SSO HudLife</span>
-            <span><LockKeyhole size={16} /> Clés hors frontend</span>
+            <span><LockKeyhole size={16} /> Signer externe</span>
             <span><Network size={16} /> Chain ID 1229800785</span>
           </div>
         </div>
@@ -214,12 +248,12 @@ function AuthScreen({ error, status }) {
           <div className="walletLogo">
             <span><Wallet size={22} /></span>
             <div>
-              <strong>inc_wallet</strong>
-              <small>ITANI wallet</small>
+              <strong>iTani Chain App</strong>
+              <small>Official wallet</small>
             </div>
           </div>
           <h2>Commencer</h2>
-          <p>Crée ou connecte ton compte Metani. Le même wallet sera reconnu par HudLife, ArtLinks et HudWorld.</p>
+          <p>Crée ou connecte ton compte Metani pour gérer tes données blockchain iTani depuis une seule dApp.</p>
           {error ? <div className="alert error">{error}</div> : null}
           <a className="primaryAction" href={getAuthUrl('register')}>
             Créer mon Metani ID <ArrowRight size={18} />
@@ -253,6 +287,18 @@ function App() {
   const [showBalance, setShowBalance] = useState(true);
   const [externalAccount, setExternalAccount] = useState('');
   const [activity, setActivity] = useState(() => readJson(ACTIVITY_KEY, []));
+  const [chainInfo, setChainInfo] = useState(null);
+  const [priceInfo, setPriceInfo] = useState(null);
+  const [dynamicInfo, setDynamicInfo] = useState(null);
+  const [stakingInfo, setStakingInfo] = useState(null);
+  const [tokensInfo, setTokensInfo] = useState(null);
+  const [nftCollections, setNftCollections] = useState(null);
+  const [nftMarketplace, setNftMarketplace] = useState(null);
+  const [walletInfo, setWalletInfo] = useState(null);
+  const [addressHistory, setAddressHistory] = useState(null);
+  const [walletNfts, setWalletNfts] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResult, setSearchResult] = useState(null);
 
   const walletAddress = user?.wallet_address || user?.address || '';
   const displayName = user?.display_name || user?.username || user?.pseudo || 'Compte Metani';
@@ -265,15 +311,48 @@ function App() {
     return Math.min(100, Math.max(1, Math.round(1 + amountScore * 49 + durationScore * 50)));
   }, [stakeAmount, stakeDuration]);
 
+  async function refreshChainData() {
+    const [chain, price, dynamic, staking, tokens, collections, marketplace] = await Promise.allSettled([
+      jsonRpc('get_chain_info'),
+      jsonRpc('oracle_get_price'),
+      jsonRpc('get_dynamic_rate'),
+      jsonRpc('get_staking_info'),
+      jsonRpc('get_deployed_tokens'),
+      jsonRpc('nft_collections'),
+      jsonRpc('nft_marketplace'),
+    ]);
+    if (chain.status === 'fulfilled') setChainInfo(pickResult(chain.value));
+    if (price.status === 'fulfilled') setPriceInfo(pickResult(price.value));
+    if (dynamic.status === 'fulfilled') setDynamicInfo(pickResult(dynamic.value));
+    if (staking.status === 'fulfilled') setStakingInfo(pickResult(staking.value));
+    if (tokens.status === 'fulfilled') setTokensInfo(pickResult(tokens.value));
+    if (collections.status === 'fulfilled') setNftCollections(pickResult(collections.value));
+    if (marketplace.status === 'fulfilled') setNftMarketplace(pickResult(marketplace.value));
+  }
+
+  async function refreshWalletData(address = walletAddress) {
+    if (!address) return;
+    const [info, history, nfts] = await Promise.allSettled([
+      jsonRpc('get_wallet_info', { address }),
+      jsonRpc('get_address_history', { address, limit: 25 }),
+      jsonRpc('nft_tokens_by_owner', { owner: address, address }),
+    ]);
+    if (info.status === 'fulfilled') setWalletInfo(pickResult(info.value));
+    if (history.status === 'fulfilled') setAddressHistory(pickResult(history.value));
+    if (nfts.status === 'fulfilled') setWalletNfts(pickResult(nfts.value));
+  }
+
   useEffect(() => {
     const incoming = getIncomingToken();
     const token = incoming || localStorage.getItem(SSO_TOKEN_KEY);
 
+    refreshChainData().catch(() => {});
     setStatus('verification');
     verifySso(token)
       .then((data) => {
         setUser(data.user);
         setBalance(data.balance_formatted || `${data.balance || '0'} ${nativeCurrency.symbol}`);
+        refreshWalletData(data.user?.wallet_address || data.user?.address).catch(() => {});
         writeActivity({ type: 'sso', title: 'Session Metani connectée', detail: data.user?.pseudo || data.user?.address || 'SSO HudLife' });
         setActivity(readJson(ACTIVITY_KEY, []));
       })
@@ -296,11 +375,35 @@ function App() {
       const data = await verifySso(token);
       setUser(data.user);
       setBalance(data.balance_formatted || `${data.balance || '0'} ${nativeCurrency.symbol}`);
+      await Promise.allSettled([
+        refreshChainData(),
+        refreshWalletData(data.user?.wallet_address || data.user?.address),
+      ]);
       setError('');
     } catch (err) {
       setError(err.message);
     } finally {
       setStatus('prêt');
+    }
+  }
+
+  async function searchChain(event) {
+    event.preventDefault();
+    const q = searchQuery.trim();
+    if (!q) return;
+    setSearchResult({ loading: true });
+    try {
+      let result;
+      if (/^\d+$/.test(q)) {
+        result = await jsonRpc('get_block', { height: Number(q), block_height: Number(q) });
+      } else if (q.startsWith('iTx') || q.startsWith('0x')) {
+        result = await jsonRpc('get_transaction_details', { tx_id: q, hash: q });
+      } else {
+        result = await jsonRpc('get_wallet_info', { address: q });
+      }
+      setSearchResult({ query: q, result });
+    } catch (err) {
+      setSearchResult({ query: q, error: err.message });
     }
   }
 
@@ -464,10 +567,10 @@ function App() {
     <main className="appShell">
       <aside className="sidebar">
         <div className="walletLogo">
-          <span><Wallet size={22} /></span>
-          <div>
-            <strong>inc_wallet</strong>
-            <small>iTani Network</small>
+            <span><Wallet size={22} /></span>
+            <div>
+            <strong>iTani Chain App</strong>
+            <small>Official dApp</small>
           </div>
         </div>
         <nav className="navList" aria-label="Navigation wallet">
@@ -496,7 +599,7 @@ function App() {
             <button className="iconButton" type="button" onClick={refreshSession} title="Rafraîchir">
               {status === 'sync' ? <Loader2 className="spin" size={18} /> : <RefreshCw size={18} />}
             </button>
-            <button className="networkPill" type="button" onClick={() => setActiveTab('network')}>
+            <button className="networkPill" type="button" onClick={() => setActiveTab('explorer')}>
               <span />
               {activeNetwork.chainName}
             </button>
@@ -508,6 +611,22 @@ function App() {
 
         {activeTab === 'home' ? (
           <div className="dashboardGrid">
+            <section className="card heroCard wide">
+              <div>
+                <p className="eyebrow">dApp officielle</p>
+                <h2>Wallet + Explorer + Portfolio + Tokens/NFTs</h2>
+                <p>Cette app lit directement la blockchain iTani Network Chain. Les opérations sensibles restent signées par un wallet externe.</p>
+              </div>
+              <button className="primaryAction compact" type="button" onClick={refreshSession}>
+                Synchroniser <RefreshCw size={18} />
+              </button>
+            </section>
+
+            <StatCard label="Prix spot ITANI" value={priceInfo?.spot_price_eur || chainInfo?.amm?.current_price_eur || '-'} icon={Gauge} />
+            <StatCard label="TWAP INPO" value={priceInfo?.twap_eur || chainInfo?.amm?.oracle?.twap_100_nano_eur || '-'} icon={BarChart3} />
+            <StatCard label="Market cap estimée" value={chainInfo?.amm?.estimated_market_cap_eur || dynamicInfo?.amm_pool?.market_cap_eur || '-'} icon={Coins} />
+            <StatCard label="Transactions" value={String(chainInfo?.total_transactions ?? '-')} icon={History} />
+
             <section className="balanceCard">
               <div className="balanceHeader">
                 <span>Solde total</span>
@@ -520,9 +639,17 @@ function App() {
               <div className="quickActions">
                 <button type="button" onClick={() => setActiveTab('send')}><Send size={18} /> Envoyer</button>
                 <button type="button" onClick={() => setActiveTab('receive')}><ArrowDownLeft size={18} /> Recevoir</button>
-                <button type="button" onClick={() => setActiveTab('swap')}><Bitcoin size={18} /> Acheter BTC</button>
+                <button type="button" onClick={() => setActiveTab('bridge')}><Bitcoin size={18} /> Bridge</button>
                 <button type="button" onClick={() => setActiveTab('stake')}><Sparkles size={18} /> Staking</button>
               </div>
+            </section>
+
+            <section className="card">
+              <h2>Chaîne</h2>
+              <div className="metric"><span>Height</span><strong>{chainInfo?.height ?? '-'}</strong></div>
+              <div className="metric"><span>Accounts</span><strong>{chainInfo?.accounts ?? '-'}</strong></div>
+              <div className="metric"><span>Supply totale</span><strong>{formatUnits(chainInfo?.total_supply)} ITANI</strong></div>
+              <div className="metric"><span>Supply circulante</span><strong>{formatUnits(dynamicInfo?.chain_flows?.circulating_supply_units || walletInfo?.circulating_supply)} ITANI</strong></div>
             </section>
 
             <section className="card">
@@ -535,6 +662,31 @@ function App() {
             <section className="card wide">
               <h2>Activité récente</h2>
               <ActivityList items={activity.slice(0, 4)} />
+            </section>
+          </div>
+        ) : null}
+
+        {activeTab === 'portfolio' ? (
+          <div className="dashboardGrid">
+            <section className="balanceCard">
+              <div className="balanceHeader"><span>Wallet ITANI</span><Wallet size={18} /></div>
+              <strong>{showBalance ? balanceValue : '••••••'} <small>{nativeCurrency.symbol}</small></strong>
+              <p>{walletAddress}</p>
+              <div className="quickActions">
+                <button type="button" onClick={copyAddress}><Copy size={18} /> Copier</button>
+                <button type="button" onClick={() => refreshWalletData()}><RefreshCw size={18} /> Actualiser</button>
+              </div>
+            </section>
+            <section className="card">
+              <h2>Données wallet</h2>
+              <InfoRow label="Adresse" value={walletAddress} />
+              <InfoRow label="Balance RPC" value={walletInfo?.balance_formatted || walletInfo?.balance || balance || '-'} />
+              <InfoRow label="Transactions envoyées" value={String(walletInfo?.tx_sent_count ?? walletInfo?.sent_count ?? '-')} />
+              <InfoRow label="Transactions reçues" value={String(walletInfo?.tx_received_count ?? walletInfo?.received_count ?? '-')} />
+            </section>
+            <section className="card wide">
+              <h2>Historique blockchain</h2>
+              <ChainList items={addressHistory?.transactions || addressHistory?.history || []} empty="Aucune transaction trouvée pour ce wallet." />
             </section>
           </div>
         ) : null}
@@ -586,10 +738,64 @@ function App() {
           </section>
         ) : null}
 
-        {activeTab === 'swap' ? (
+        {activeTab === 'tokens' ? (
+          <div className="dashboardGrid">
+            <section className="card wide">
+              <h2>Tokens déployés</h2>
+              <p>Registre on-chain des tokens déployés sur iTani Network Chain.</p>
+              <ChainList items={tokensInfo?.tokens || []} empty="Aucun token déployé enregistré pour le moment." />
+            </section>
+            <section className="card">
+              <h2>Politique token</h2>
+              <InfoRow label="Tokens" value={String(tokensInfo?.count ?? 0)} />
+              <InfoRow label="Fee deploy" value={`${tokensInfo?.policy?.fee_percent ?? '-'}%`} />
+              <InfoRow label="Exchange fee" value={`${tokensInfo?.policy?.exchange_fee_bps ?? '-'} bps`} />
+            </section>
+          </div>
+        ) : null}
+
+        {activeTab === 'nfts' ? (
+          <div className="dashboardGrid">
+            <section className="card">
+              <h2>Mes NFTs</h2>
+              <ChainList items={walletNfts?.tokens || walletNfts?.nfts || []} empty="Aucun NFT dans ce wallet." />
+            </section>
+            <section className="card">
+              <h2>Collections</h2>
+              <ChainList items={nftCollections?.collections || []} empty="Aucune collection NFT enregistrée." />
+            </section>
+            <section className="card wide">
+              <h2>Marketplace NFT</h2>
+              <ChainList items={nftMarketplace?.listings || []} empty="Aucun NFT listé sur la marketplace." />
+            </section>
+          </div>
+        ) : null}
+
+        {activeTab === 'explorer' ? (
+          <div className="dashboardGrid">
+            <section className="card wide formCard">
+              <h2>Explorer iTani</h2>
+              <form onSubmit={searchChain}>
+                <label>Recherche adresse, transaction ou bloc</label>
+                <div className="searchLine">
+                  <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Adresse, iTx..., 0x..., ou numéro de bloc" />
+                  <button className="primaryAction compact" type="submit"><Database size={18} /> Chercher</button>
+                </div>
+              </form>
+              <ExplorerResult data={searchResult} />
+            </section>
+            <StatCard label="Height" value={String(chainInfo?.height ?? '-')} icon={Blocks} />
+            <StatCard label="Chain ID" value={String(chainInfo?.chain_id ?? activeNetwork.chainId)} icon={Network} />
+            <StatCard label="Consensus" value={chainInfo?.consensus || '-'} icon={ShieldCheck} />
+            <StatCard label="EVM" value={chainInfo?.evm_compatible ? 'Compatible' : 'Non confirmé'} icon={BadgeCheck} />
+          </div>
+        ) : null}
+
+        {activeTab === 'bridge' ? (
           <section className="card swapCard">
-            <h2>Acheter BTC avec ITANI</h2>
-            <p>Taux fixe configuré: 10 000 ITANI = 1 BTC. Le swap crédite d’abord ITABTC/iWBTC sur iTani; le retrait BTC L1 dépend du bridge Bitcoin.</p>
+            <h2>Bridge et BTC</h2>
+            <p>Le bridge est visible en lecture, mais les écritures mainnet restent verrouillées tant que l’audit bridge/custody n’est pas validé.</p>
+            {BRIDGE_READ_ONLY ? <div className="alert error">Bridge verrouillé en production. Aucun retrait ou lock réel ne doit être lancé sans audit et signer externe.</div> : null}
             <form className="btcForm" onSubmit={buyBtcWithItani}>
               <label>Montant ITANI</label>
               <div className="amountInput">
@@ -603,23 +809,11 @@ function App() {
               </div>
               <label>Adresse BTC de retrait optionnelle</label>
               <input value={btcDestination} onChange={(event) => setBtcDestination(event.target.value)} placeholder="bc1... ou 1... / 3..." />
-              <button className="primaryAction" type="submit">Signer l’achat BTC <Bitcoin size={18} /></button>
+              <button className="primaryAction" type="submit" disabled={BRIDGE_READ_ONLY}>Signer l’achat BTC <Bitcoin size={18} /></button>
             </form>
             <a className="secondaryAction" href={activeNetwork.swapUrls?.[0] || 'https://hudlife.itaninetworkchain.com/swap'} target="_blank" rel="noreferrer">
               Ouvrir iTaniSwap <ExternalLink size={18} />
             </a>
-          </section>
-        ) : null}
-
-        {activeTab === 'network' ? (
-          <section className="card networkCard">
-            <h2>Réseau</h2>
-            <InfoRow label="Nom" value={activeNetwork.chainName} />
-            <InfoRow label="Chain ID" value={String(activeNetwork.chainId)} />
-            <InfoRow label="RPC principal" value={activeNetwork.rpcUrls[0]} />
-            <InfoRow label="Relay REST" value={activeNetwork.restUrls[0]} />
-            <InfoRow label="Explorer" value={activeNetwork.blockExplorerUrls[0]} />
-            <button className="primaryAction compact" type="button" onClick={connectSigner}>Ajouter au wallet externe</button>
           </section>
         ) : null}
 
@@ -652,6 +846,59 @@ function InfoRow({ label, value }) {
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
+  );
+}
+
+function StatCard({ label, value, icon: Icon }) {
+  return (
+    <section className="statCard">
+      <span><Icon size={20} /></span>
+      <div>
+        <small>{label}</small>
+        <strong>{value}</strong>
+      </div>
+    </section>
+  );
+}
+
+function ChainList({ items, empty }) {
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) {
+    return (
+      <div className="emptyState compact">
+        <Layers size={24} />
+        <strong>{empty}</strong>
+      </div>
+    );
+  }
+
+  return (
+    <div className="chainList">
+      {list.slice(0, 25).map((item, index) => {
+        const id = item.id || item.tx_id || item.hash || item.token_id || item.contract_address || item.address || `item-${index}`;
+        const title = item.name || item.symbol || item.type || item.method || item.tx_id || item.hash || id;
+        const detail = item.description || item.status || item.owner || item.from || item.to || item.contract_address || item.address || '';
+        return (
+          <div className="chainItem" key={id}>
+            <strong>{shorten(String(title), 18, 10)}</strong>
+            <small>{detail ? shorten(String(detail), 18, 12) : JSON.stringify(item).slice(0, 120)}</small>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ExplorerResult({ data }) {
+  if (!data) return null;
+  if (data.loading) {
+    return <div className="emptyState compact"><Loader2 className="spin" size={22} /><strong>Recherche...</strong></div>;
+  }
+  if (data.error) {
+    return <div className="alert error">{data.error}</div>;
+  }
+  return (
+    <pre className="resultBox">{JSON.stringify(data.result, null, 2)}</pre>
   );
 }
 

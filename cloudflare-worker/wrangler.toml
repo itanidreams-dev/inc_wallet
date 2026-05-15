@@ -1,0 +1,10 @@
+name = "itani-chain-app"
+main = "src/worker.js"
+compatibility_date = "2026-05-15"
+
+routes = [
+  { pattern = "app.itaninetworkchain.com/*", zone_name = "itaninetworkchain.com" }
+]
+
+[vars]
+ITANI_APP_ORIGIN = "https://inc-wallet.fly.dev"
