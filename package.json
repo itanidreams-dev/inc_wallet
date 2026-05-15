@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Official iTani Chain App: wallet, explorer, portfolio, tokens, NFTs and staking dashboard.",
+  "description": "Official iTani Kobs App: wallet, explorer, portfolio, tokens, NFTs and staking dashboard.",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",

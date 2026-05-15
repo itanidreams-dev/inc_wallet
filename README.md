@@ -1,4 +1,4 @@
-# iTani Chain App / INC Wallet
+# iTani Kobs App / INC Wallet
 
 Official iTani Network Chain dApp.
 

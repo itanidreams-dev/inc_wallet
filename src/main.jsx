@@ -49,6 +49,7 @@ const NFT_BOX_ENDPOINT = import.meta.env.VITE_NFT_BOX_ENDPOINT || '/nft-marketpl
 const ITANI_PER_BTC = Number(import.meta.env.VITE_ITANI_BTC_RATE || 10000);
 const SATOSHIS_PER_BTC = 100000000;
 const BRIDGE_READ_ONLY = true;
+const MARKET_NOT_LISTED = 'Non coté';
 
 const tabs = [
   { id: 'home', label: 'Dashboard', icon: BarChart3 },
@@ -225,6 +226,13 @@ function pickResult(value, fallback = null) {
   return value && typeof value === 'object' ? value : fallback;
 }
 
+function hasUserMarketActivity(dynamicInfo, chainInfo) {
+  const userTransactions = Number(dynamicInfo?.chain_flows?.user_transactions || 0);
+  const eurReserve = Number(chainInfo?.amm?.amm_eur_reserve_nano || dynamicInfo?.amm_pool?.eur_reserve_nano || 0);
+  const itaniReserve = Number(chainInfo?.amm?.amm_iTani_reserve || dynamicInfo?.amm_pool?.iTani_reserve || 0);
+  return userTransactions > 0 && eurReserve > 0 && itaniReserve > 0;
+}
+
 function AuthScreen({ error, status, onEmailAuth }) {
   const [mode, setMode] = useState('login');
   const [form, setForm] = useState({
@@ -260,7 +268,7 @@ function AuthScreen({ error, status, onEmailAuth }) {
             <span><Wallet size={40} /></span>
           </div>
           <p className="eyebrow">iTani Network Chain</p>
-          <h1>iTani Chain App</h1>
+          <h1>iTani Kobs App</h1>
           <p>
             Wallet officiel, portfolio, explorer, tokens, NFTs, staking et données de valeur ITANI dans une interface simple et mobile-first.
           </p>
@@ -275,12 +283,12 @@ function AuthScreen({ error, status, onEmailAuth }) {
           <div className="walletLogo">
             <span><Wallet size={22} /></span>
             <div>
-              <strong>iTani Chain App</strong>
+              <strong>iTani Kobs App</strong>
               <small>Official wallet</small>
             </div>
           </div>
           <h2>Commencer</h2>
-          <p>Crée ou connecte ton compte Metani avec email et mot de passe. Aucun email de récupération n’est requis pour commencer.</p>
+          <p>Crée ou connecte ton compte Metani avec email, prénom/nom et mot de passe. Aucun email de récupération n’est requis pour commencer.</p>
           {error ? <div className="alert error">{error}</div> : null}
           <div className="authModeSwitch" role="tablist" aria-label="Mode de connexion">
             <button className={!isRegister ? 'active' : ''} type="button" onClick={() => setMode('login')}>Connexion</button>
@@ -305,9 +313,21 @@ function AuthScreen({ error, status, onEmailAuth }) {
                 <input value={form.pseudo} onChange={(event) => updateField('pseudo', event.target.value)} autoComplete="nickname" />
               </label>
             ) : null}
+            {!isRegister ? (
+              <div className="authFieldsGrid">
+                <label>
+                  Prénom
+                  <input value={form.firstName} onChange={(event) => updateField('firstName', event.target.value)} autoComplete="given-name" />
+                </label>
+                <label>
+                  Nom
+                  <input value={form.lastName} onChange={(event) => updateField('lastName', event.target.value)} autoComplete="family-name" />
+                </label>
+              </div>
+            ) : null}
             <label>
               Adresse email
-              <input value={form.email} onChange={(event) => updateField('email', event.target.value)} type="email" autoComplete="email" required />
+              <input value={form.email} onChange={(event) => updateField('email', event.target.value)} type="email" autoComplete="email" required={isRegister} />
             </label>
             <label>
               Mot de passe
@@ -375,6 +395,10 @@ function App() {
   const btcSatoshis = useMemo(() => btcToSatoshis(btcQuote), [btcQuote]);
   const collectionItems = nftCollections?.collections?.length ? nftCollections.collections : (nftBox?.collections || []);
   const marketplaceItems = nftMarketplace?.listings?.length ? nftMarketplace.listings : (nftBox?.listings || []);
+  const marketIsLive = hasUserMarketActivity(dynamicInfo, chainInfo);
+  const spotPriceDisplay = marketIsLive ? (priceInfo?.spot_price_eur || chainInfo?.amm?.current_price_eur || MARKET_NOT_LISTED) : MARKET_NOT_LISTED;
+  const twapDisplay = marketIsLive ? (priceInfo?.twap_eur || chainInfo?.amm?.oracle?.twap_100_nano_eur || MARKET_NOT_LISTED) : MARKET_NOT_LISTED;
+  const marketCapDisplay = marketIsLive ? (chainInfo?.amm?.estimated_market_cap_eur || dynamicInfo?.amm_pool?.market_cap_eur || MARKET_NOT_LISTED) : MARKET_NOT_LISTED;
   const stakeRate = useMemo(() => {
     const amountScore = Math.min(Math.max(Number(stakeAmount || 0) / 10000, 0), 1);
     const durationScore = Math.min(Math.max(Number(stakeDuration || 1) / 365, 0), 1);
@@ -438,8 +462,12 @@ function App() {
 
   async function handleEmailAuth(mode, form) {
     const email = form.email.trim().toLowerCase();
+    const firstName = form.firstName.trim();
+    const lastName = form.lastName.trim();
     const password = form.password;
-    if (!email || !password) throw new Error('Email et mot de passe requis.');
+    if (mode === 'register' && !email) throw new Error('Email et mot de passe requis.');
+    if (mode === 'login' && !email && (!firstName || !lastName)) throw new Error('Email ou prénom/nom et mot de passe requis.');
+    if (!password) throw new Error('Mot de passe requis.');
     if (password.length < 8) throw new Error('Le mot de passe doit contenir au moins 8 caractères.');
     if (mode === 'register' && password !== form.confirmPassword) {
       throw new Error('Les deux mots de passe ne correspondent pas.');
@@ -452,18 +480,20 @@ function App() {
       const payload = mode === 'register'
         ? {
             app: 'inc_wallet',
-            first_name: form.firstName.trim(),
-            last_name: form.lastName.trim(),
+            first_name: firstName,
+            last_name: lastName,
             pseudo: form.pseudo.trim() || undefined,
             email,
             password,
           }
         : {
-            app: 'inc_wallet',
-            email,
-            identifier: email,
-            password,
-          };
+          app: 'inc_wallet',
+          email,
+          first_name: firstName || undefined,
+          last_name: lastName || undefined,
+          identifier: email || `${firstName} ${lastName}`.trim(),
+          password,
+        };
       const data = await fetchJson(`${HUDLIFE_PORTAL}${endpoint}`, {
         method: 'POST',
         body: JSON.stringify(payload),
@@ -704,7 +734,7 @@ function App() {
         <div className="walletLogo">
             <span><Wallet size={22} /></span>
             <div>
-            <strong>iTani Chain App</strong>
+            <strong>iTani Kobs App</strong>
             <small>Official dApp</small>
           </div>
         </div>
@@ -757,9 +787,9 @@ function App() {
               </button>
             </section>
 
-            <StatCard label="Prix spot ITANI" value={priceInfo?.spot_price_eur || chainInfo?.amm?.current_price_eur || '-'} icon={Gauge} />
-            <StatCard label="TWAP INPO" value={priceInfo?.twap_eur || chainInfo?.amm?.oracle?.twap_100_nano_eur || '-'} icon={BarChart3} />
-            <StatCard label="Market cap estimée" value={chainInfo?.amm?.estimated_market_cap_eur || dynamicInfo?.amm_pool?.market_cap_eur || '-'} icon={Coins} />
+            <StatCard label="Prix spot ITANI" value={spotPriceDisplay} icon={Gauge} />
+            <StatCard label="TWAP INPO" value={twapDisplay} icon={BarChart3} />
+            <StatCard label="Market cap estimée" value={marketCapDisplay} icon={Coins} />
             <StatCard label="Transactions" value={String(chainInfo?.total_transactions ?? '-')} icon={History} />
 
             <section className="balanceCard">
