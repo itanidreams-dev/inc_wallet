@@ -9,6 +9,17 @@
   function savedConsent() {
     try {
       const value = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (value && value.version === VERSION && value.required === true) return true;
+    } catch {
+      // Continue with cookie fallback.
+    }
+    try {
+      const cookie = document.cookie
+        .split(';')
+        .map((entry) => entry.trim())
+        .find((entry) => entry.startsWith(`${COOKIE}=`));
+      if (!cookie) return false;
+      const value = JSON.parse(decodeURIComponent(cookie.slice(COOKIE.length + 1)));
       return value && value.version === VERSION && value.required === true;
     } catch {
       return false;
@@ -38,11 +49,13 @@
   }
 
   function injectStyles() {
+    if (document.getElementById('itani-consent-styles')) return;
     const style = document.createElement('style');
+    style.id = 'itani-consent-styles';
     style.textContent = `
       html.itani-consent-locked body > *:not(#itani-consent-gate),
       body.itani-consent-locked > *:not(#itani-consent-gate) {
-        filter: blur(10px);
+        filter: blur(6px);
         pointer-events: none;
         user-select: none;
       }
@@ -50,9 +63,11 @@
         position: fixed;
         inset: 0;
         z-index: 2147483647;
-        display: grid;
-        place-items: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         padding: 18px;
+        overflow: auto;
         background: rgba(2, 6, 23, 0.72);
         color: #f8fafc;
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -63,7 +78,7 @@
       }
       #itani-consent-gate .itani-consent-panel {
         width: min(760px, 100%);
-        max-height: min(88vh, 760px);
+        max-height: min(88dvh, 760px);
         overflow: auto;
         border: 1px solid rgba(148, 163, 184, 0.32);
         border-radius: 8px;
@@ -90,6 +105,10 @@
         flex-wrap: wrap;
         gap: 10px;
         margin-top: 16px;
+        position: sticky;
+        bottom: -22px;
+        background: linear-gradient(180deg, rgba(7, 17, 31, 0.86), #07111f 34%);
+        padding-top: 12px;
       }
       #itani-consent-gate button, #itani-consent-gate a.itani-consent-link {
         min-height: 42px;
@@ -112,6 +131,23 @@
       #itani-consent-gate .itani-consent-small {
         font-size: 12px;
         color: #94a3b8;
+      }
+      @media (max-width: 560px) {
+        #itani-consent-gate {
+          align-items: stretch;
+          padding: 10px;
+        }
+        #itani-consent-gate .itani-consent-panel {
+          max-height: calc(100dvh - 20px);
+          padding: 16px;
+        }
+        #itani-consent-gate .itani-consent-actions {
+          display: grid;
+        }
+        #itani-consent-gate button,
+        #itani-consent-gate a.itani-consent-link {
+          width: 100%;
+        }
       }
     `;
     document.head.appendChild(style);
