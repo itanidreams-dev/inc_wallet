@@ -50,6 +50,12 @@ const ITANI_PER_BTC = Number(import.meta.env.VITE_ITANI_BTC_RATE || 10000);
 const SATOSHIS_PER_BTC = 100000000;
 const BRIDGE_READ_ONLY = true;
 const MARKET_NOT_LISTED = 'Non coté';
+const MARKET_LIVE = import.meta.env.VITE_ITANI_MARKET_LIVE === 'true';
+const OFFICIAL_LINKS = [
+  { label: 'Explorer', href: 'https://explorer.itaninetworkchain.com' },
+  { label: 'RPC public', href: 'https://node.itaninetworkchain.com/jsonrpc' },
+  { label: 'Faire tourner un nœud', href: 'https://github.com/itanidreams-dev/iTani-Network-Chain-mainnet#démarrage-rapide' },
+];
 
 const tabs = [
   { id: 'home', label: 'Dashboard', icon: BarChart3 },
@@ -270,7 +276,7 @@ function AuthScreen({ error, status, onEmailAuth }) {
           <p className="eyebrow">iTani Network Chain</p>
           <h1>iTani Kobs App</h1>
           <p>
-            Wallet officiel, portfolio, explorer, tokens, NFTs, staking et données de valeur ITANI dans une interface simple et mobile-first.
+            Wallet officiel Bitcoin-like pour créer ton compte, voir ton solde ITANI, suivre tes transactions, NFTs, staking et données réseau.
           </p>
           <div className="trustList">
             <span><ShieldCheck size={16} /> SSO HudLife</span>
@@ -288,7 +294,7 @@ function AuthScreen({ error, status, onEmailAuth }) {
             </div>
           </div>
           <h2>Commencer</h2>
-          <p>Crée ou connecte ton compte Metani avec email, prénom/nom et mot de passe. Aucun email de récupération n’est requis pour commencer.</p>
+          <p>Crée ou connecte ton compte Metani avec pseudo, email, prénom/nom et mot de passe. Aucun email de récupération n’est requis pour commencer.</p>
           {error ? <div className="alert error">{error}</div> : null}
           <div className="authModeSwitch" role="tablist" aria-label="Mode de connexion">
             <button className={!isRegister ? 'active' : ''} type="button" onClick={() => setMode('login')}>Connexion</button>
@@ -307,12 +313,10 @@ function AuthScreen({ error, status, onEmailAuth }) {
                 </label>
               </div>
             ) : null}
-            {isRegister ? (
-              <label>
-                Pseudo optionnel
-                <input value={form.pseudo} onChange={(event) => updateField('pseudo', event.target.value)} autoComplete="nickname" />
-              </label>
-            ) : null}
+            <label>
+              Pseudo {isRegister ? 'optionnel' : 'ou identifiant'}
+              <input value={form.pseudo} onChange={(event) => updateField('pseudo', event.target.value)} autoComplete="nickname" />
+            </label>
             {!isRegister ? (
               <div className="authFieldsGrid">
                 <label>
@@ -347,6 +351,13 @@ function AuthScreen({ error, status, onEmailAuth }) {
           <div className="ssoFallback">
             <a className="secondaryAction" href={getAuthUrl('register')}>Créer via HudLife</a>
             <a className="secondaryAction" href={getAuthUrl('login')}>Connexion HudLife</a>
+          </div>
+          <div className="publicLinks" aria-label="Liens publics iTani">
+            {OFFICIAL_LINKS.map((link) => (
+              <a key={link.href} href={link.href} target="_blank" rel="noreferrer">
+                {link.label} <ExternalLink size={14} />
+              </a>
+            ))}
           </div>
           <div className="statusLine">
             {status === 'verification' ? <Loader2 className="spin" size={16} /> : <BadgeCheck size={16} />}
@@ -395,7 +406,7 @@ function App() {
   const btcSatoshis = useMemo(() => btcToSatoshis(btcQuote), [btcQuote]);
   const collectionItems = nftCollections?.collections?.length ? nftCollections.collections : (nftBox?.collections || []);
   const marketplaceItems = nftMarketplace?.listings?.length ? nftMarketplace.listings : (nftBox?.listings || []);
-  const marketIsLive = hasUserMarketActivity(dynamicInfo, chainInfo);
+  const marketIsLive = MARKET_LIVE && hasUserMarketActivity(dynamicInfo, chainInfo);
   const spotPriceDisplay = marketIsLive ? (priceInfo?.spot_price_eur || chainInfo?.amm?.current_price_eur || MARKET_NOT_LISTED) : MARKET_NOT_LISTED;
   const twapDisplay = marketIsLive ? (priceInfo?.twap_eur || chainInfo?.amm?.oracle?.twap_100_nano_eur || MARKET_NOT_LISTED) : MARKET_NOT_LISTED;
   const marketCapDisplay = marketIsLive ? (chainInfo?.amm?.estimated_market_cap_eur || dynamicInfo?.amm_pool?.market_cap_eur || MARKET_NOT_LISTED) : MARKET_NOT_LISTED;
@@ -464,9 +475,10 @@ function App() {
     const email = form.email.trim().toLowerCase();
     const firstName = form.firstName.trim();
     const lastName = form.lastName.trim();
+    const pseudo = form.pseudo.trim();
     const password = form.password;
     if (mode === 'register' && !email) throw new Error('Email et mot de passe requis.');
-    if (mode === 'login' && !email && (!firstName || !lastName)) throw new Error('Email ou prénom/nom et mot de passe requis.');
+    if (mode === 'login' && !email && !pseudo && (!firstName || !lastName)) throw new Error('Email, pseudo ou prénom/nom et mot de passe requis.');
     if (!password) throw new Error('Mot de passe requis.');
     if (password.length < 8) throw new Error('Le mot de passe doit contenir au moins 8 caractères.');
     if (mode === 'register' && password !== form.confirmPassword) {
@@ -482,7 +494,7 @@ function App() {
             app: 'inc_wallet',
             first_name: firstName,
             last_name: lastName,
-            pseudo: form.pseudo.trim() || undefined,
+            pseudo: pseudo || undefined,
             email,
             password,
           }
@@ -491,7 +503,9 @@ function App() {
           email,
           first_name: firstName || undefined,
           last_name: lastName || undefined,
-          identifier: email || `${firstName} ${lastName}`.trim(),
+          pseudo: pseudo || undefined,
+          username: pseudo || undefined,
+          identifier: email || pseudo || `${firstName} ${lastName}`.trim(),
           password,
         };
       const data = await fetchJson(`${HUDLIFE_PORTAL}${endpoint}`, {
@@ -512,6 +526,10 @@ function App() {
     const token = incoming || localStorage.getItem(SSO_TOKEN_KEY);
 
     refreshChainData().catch(() => {});
+    if (!token) {
+      setStatus('prêt');
+      return;
+    }
     setStatus('verification');
     verifySso(token)
       .then((data) => {
@@ -782,9 +800,16 @@ function App() {
                 <h2>Wallet + Explorer + Portfolio + Tokens/NFTs</h2>
                 <p>Cette app lit directement la blockchain iTani Network Chain. Les opérations sensibles restent signées par un wallet externe.</p>
               </div>
-              <button className="primaryAction compact" type="button" onClick={refreshSession}>
-                Synchroniser <RefreshCw size={18} />
-              </button>
+              <div className="heroActions">
+                <button className="primaryAction compact" type="button" onClick={refreshSession}>
+                  Synchroniser <RefreshCw size={18} />
+                </button>
+                {OFFICIAL_LINKS.map((link) => (
+                  <a key={link.href} className="secondaryAction" href={link.href} target="_blank" rel="noreferrer">
+                    {link.label} <ExternalLink size={18} />
+                  </a>
+                ))}
+              </div>
             </section>
 
             <StatCard label="Prix spot ITANI" value={spotPriceDisplay} icon={Gauge} />

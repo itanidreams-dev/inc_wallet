@@ -153,6 +153,27 @@ a {
   width: 100%;
 }
 
+.publicLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.publicLinks a {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: #dbeafe;
+  background: rgba(15, 23, 42, 0.48);
+  font-size: 0.88rem;
+  font-weight: 800;
+  padding: 0 10px;
+  text-decoration: none;
+}
+
 .orbital {
   display: grid;
   width: 112px;
@@ -383,6 +404,15 @@ h2 {
 .heroCard h2 {
   font-size: clamp(1.7rem, 4vw, 3rem);
   line-height: 1;
+}
+
+.heroActions {
+  display: flex;
+  max-width: 360px;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .statCard {
@@ -941,6 +971,7 @@ code {
 
   .topActions,
   .quickActions,
+  .heroActions,
   .heroCard,
   .primaryAction,
   .secondaryAction {
@@ -956,6 +987,11 @@ code {
 
   .heroCard {
     display: grid;
+  }
+
+  .heroActions {
+    max-width: none;
+    justify-content: stretch;
   }
 
   .quickActions button,
