@@ -242,8 +242,6 @@ function hasUserMarketActivity(dynamicInfo, chainInfo) {
 function AuthScreen({ error, status, onEmailAuth }) {
   const [mode, setMode] = useState('login');
   const [form, setForm] = useState({
-    firstName: '',
-    lastName: '',
     pseudo: '',
     email: '',
     password: '',
@@ -294,45 +292,23 @@ function AuthScreen({ error, status, onEmailAuth }) {
             </div>
           </div>
           <h2>Commencer</h2>
-          <p>Crée ou connecte ton compte Metani avec pseudo, email, prénom/nom et mot de passe. Aucun email de récupération n’est requis pour commencer.</p>
+          <p>Crée ou connecte ton compte Metani avec pseudo, email et mot de passe. Les informations de profil se complètent ensuite dans les paramètres des apps.</p>
           {error ? <div className="alert error">{error}</div> : null}
           <div className="authModeSwitch" role="tablist" aria-label="Mode de connexion">
             <button className={!isRegister ? 'active' : ''} type="button" onClick={() => setMode('login')}>Connexion</button>
             <button className={isRegister ? 'active' : ''} type="button" onClick={() => setMode('register')}>Créer compte</button>
           </div>
           <form className="emailAuthForm" onSubmit={submitEmailAuth}>
-            {isRegister ? (
-              <div className="authFieldsGrid">
-                <label>
-                  Prénom
-                  <input value={form.firstName} onChange={(event) => updateField('firstName', event.target.value)} autoComplete="given-name" required />
-                </label>
-                <label>
-                  Nom
-                  <input value={form.lastName} onChange={(event) => updateField('lastName', event.target.value)} autoComplete="family-name" required />
-                </label>
-              </div>
-            ) : null}
             <label>
-              Pseudo {isRegister ? 'optionnel' : 'ou identifiant'}
-              <input value={form.pseudo} onChange={(event) => updateField('pseudo', event.target.value)} autoComplete="nickname" />
+              Pseudo
+              <input value={form.pseudo} onChange={(event) => updateField('pseudo', event.target.value)} autoComplete="username" required />
             </label>
-            {!isRegister ? (
-              <div className="authFieldsGrid">
-                <label>
-                  Prénom
-                  <input value={form.firstName} onChange={(event) => updateField('firstName', event.target.value)} autoComplete="given-name" />
-                </label>
-                <label>
-                  Nom
-                  <input value={form.lastName} onChange={(event) => updateField('lastName', event.target.value)} autoComplete="family-name" />
-                </label>
-              </div>
-            ) : null}
+            {isRegister ? (
             <label>
               Adresse email
               <input value={form.email} onChange={(event) => updateField('email', event.target.value)} type="email" autoComplete="email" required={isRegister} />
             </label>
+            ) : null}
             <label>
               Mot de passe
               <input value={form.password} onChange={(event) => updateField('password', event.target.value)} type="password" autoComplete={isRegister ? 'new-password' : 'current-password'} minLength={8} required />
@@ -473,12 +449,10 @@ function App() {
 
   async function handleEmailAuth(mode, form) {
     const email = form.email.trim().toLowerCase();
-    const firstName = form.firstName.trim();
-    const lastName = form.lastName.trim();
     const pseudo = form.pseudo.trim();
     const password = form.password;
-    if (mode === 'register' && !email) throw new Error('Email et mot de passe requis.');
-    if (mode === 'login' && !email && !pseudo && (!firstName || !lastName)) throw new Error('Email, pseudo ou prénom/nom et mot de passe requis.');
+    if (mode === 'register' && (!pseudo || !email)) throw new Error('Pseudo, email et mot de passe requis.');
+    if (mode === 'login' && !pseudo) throw new Error('Pseudo et mot de passe requis.');
     if (!password) throw new Error('Mot de passe requis.');
     if (password.length < 8) throw new Error('Le mot de passe doit contenir au moins 8 caractères.');
     if (mode === 'register' && password !== form.confirmPassword) {
@@ -492,20 +466,15 @@ function App() {
       const payload = mode === 'register'
         ? {
             app: 'inc_wallet',
-            first_name: firstName,
-            last_name: lastName,
-            pseudo: pseudo || undefined,
+            pseudo,
             email,
             password,
           }
         : {
           app: 'inc_wallet',
-          email,
-          first_name: firstName || undefined,
-          last_name: lastName || undefined,
-          pseudo: pseudo || undefined,
-          username: pseudo || undefined,
-          identifier: email || pseudo || `${firstName} ${lastName}`.trim(),
+          pseudo,
+          username: pseudo,
+          identifier: pseudo,
           password,
         };
       const data = await fetchJson(`${HUDLIFE_PORTAL}${endpoint}`, {
