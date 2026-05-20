@@ -495,10 +495,6 @@ function App() {
     const token = incoming || localStorage.getItem(SSO_TOKEN_KEY);
 
     refreshChainData().catch(() => {});
-    if (!token) {
-      setStatus('prêt');
-      return;
-    }
     setStatus('verification');
     verifySso(token)
       .then((data) => {
@@ -509,7 +505,9 @@ function App() {
         setActivity(readJson(ACTIVITY_KEY, []));
       })
       .catch((err) => {
-        setError(err.message);
+        if (token) {
+          setError(err.message);
+        }
         localStorage.removeItem(SSO_TOKEN_KEY);
         localStorage.removeItem(SSO_USER_KEY);
       })
