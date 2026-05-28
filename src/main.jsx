@@ -36,9 +36,17 @@ import './style.css';
 const SSO_TOKEN_KEY = 'itani_sso_token';
 const SSO_USER_KEY = 'itani_sso_user';
 const ACTIVITY_KEY = 'inc_wallet_activity';
-const HUDLIFE_PORTAL = (import.meta.env.VITE_HUDLIFE_PORTAL_URL || 'https://hudlife.itaninetworkchain.com').replace(/\/+$/, '');
-const HUDLIFE_SSO = (import.meta.env.VITE_HUDLIFE_SSO_URL || `${HUDLIFE_PORTAL}/api/sso`).replace(/\/+$/, '');
-const CLIENT_ID = import.meta.env.VITE_ITANI_SSO_CLIENT_ID || 'inc-wallet-web';
+const METANI_PORTAL = (
+  import.meta.env.VITE_METANI_PORTAL_URL ||
+  import.meta.env.VITE_HUDLIFE_PORTAL_URL ||
+  (import.meta.env.DEV ? 'http://localhost:3050' : 'https://metani.itaninetworkchain.com')
+).replace(/\/+$/, '');
+const METANI_SSO = (
+  import.meta.env.VITE_METANI_SSO_URL ||
+  import.meta.env.VITE_HUDLIFE_SSO_URL ||
+  `${METANI_PORTAL}/api/sso`
+).replace(/\/+$/, '');
+const CLIENT_ID = import.meta.env.VITE_METANI_SSO_CLIENT_ID || import.meta.env.VITE_ITANI_SSO_CLIENT_ID || 'inc-wallet-web';
 const STAKING_ENDPOINT =
   import.meta.env.VITE_ITANI_STAKING_ENDPOINT ||
   'https://relay.itaninetworkchain.com/api/wallet/stake-tokens';
@@ -90,7 +98,14 @@ function writeActivity(entry) {
 
 function getIncomingToken() {
   const url = new URL(window.location.href);
-  return url.searchParams.get('sso_token') || url.searchParams.get('token');
+  const hashValue = window.location.hash?.startsWith('#') ? window.location.hash.slice(1) : window.location.hash || '';
+  const hashUrl = new URL(`${window.location.origin}${window.location.pathname}${hashValue}`);
+  return (
+    url.searchParams.get('sso_token') ||
+    url.searchParams.get('token') ||
+    hashUrl.searchParams.get('sso_token') ||
+    hashUrl.searchParams.get('token')
+  );
 }
 
 function cleanUrl() {
@@ -103,12 +118,12 @@ function cleanUrl() {
 }
 
 function getAuthUrl(mode = 'login') {
-  const url = new URL(`${HUDLIFE_PORTAL}/login`);
+  const url = new URL(`${METANI_PORTAL}/login`);
   url.searchParams.set('app', 'inc_wallet');
   url.searchParams.set('client_id', CLIENT_ID);
   url.searchParams.set('redirect_uri', `${window.location.origin}${window.location.pathname}`);
   url.searchParams.set('mode', mode);
-  url.searchParams.set('provider', 'hudlife');
+  url.searchParams.set('provider', 'metani');
   return url.toString();
 }
 
@@ -146,10 +161,11 @@ async function verifySso(token) {
   if (token) {
     params.set('token', token);
   }
-  const data = await fetchJson(`${HUDLIFE_SSO}/verify?${params.toString()}`);
-  if (!data.valid || !data.user) throw new Error(data.error || 'Session HudLife invalide');
-  if (token) {
-    localStorage.setItem(SSO_TOKEN_KEY, token);
+  const data = await fetchJson(`${METANI_SSO}/verify?${params.toString()}`);
+  if (!data.valid || !data.user) throw new Error(data.error || 'Session Metani invalide');
+  const resolvedToken = token || data.sso_token || data.token;
+  if (resolvedToken) {
+    localStorage.setItem(SSO_TOKEN_KEY, resolvedToken);
   }
   localStorage.setItem(SSO_USER_KEY, JSON.stringify(data.user));
   return data;
@@ -239,31 +255,7 @@ function hasUserMarketActivity(dynamicInfo, chainInfo) {
   return userTransactions > 0 && eurReserve > 0 && itaniReserve > 0;
 }
 
-function AuthScreen({ error, status, onEmailAuth }) {
-  const [mode, setMode] = useState('login');
-  const [form, setForm] = useState({
-    pseudo: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-  });
-  const [busy, setBusy] = useState(false);
-  const isRegister = mode === 'register';
-
-  function updateField(field, value) {
-    setForm((current) => ({ ...current, [field]: value }));
-  }
-
-  async function submitEmailAuth(event) {
-    event.preventDefault();
-    setBusy(true);
-    try {
-      await onEmailAuth(mode, form);
-    } finally {
-      setBusy(false);
-    }
-  }
-
+function AuthScreen({ error, status }) {
   return (
     <main className="authShell">
       <section className="authCard">
@@ -277,7 +269,7 @@ function AuthScreen({ error, status, onEmailAuth }) {
             Wallet officiel Bitcoin-like pour créer ton compte, voir ton solde ITANI, suivre tes transactions, NFTs, staking et données réseau.
           </p>
           <div className="trustList">
-            <span><ShieldCheck size={16} /> SSO HudLife</span>
+            <span><ShieldCheck size={16} /> SSO Metani</span>
             <span><LockKeyhole size={16} /> Signer externe</span>
             <span><Network size={16} /> Chain ID 1229800785</span>
           </div>
@@ -292,41 +284,11 @@ function AuthScreen({ error, status, onEmailAuth }) {
             </div>
           </div>
           <h2>Commencer</h2>
-          <p>Crée ou connecte ton compte Metani avec pseudo, email et mot de passe. Les informations de profil se complètent ensuite dans les paramètres des apps.</p>
+          <p>La connexion et la creation de compte passent uniquement par Metani ID. inc_wallet recupere ensuite automatiquement la session SSO.</p>
           {error ? <div className="alert error">{error}</div> : null}
-          <div className="authModeSwitch" role="tablist" aria-label="Mode de connexion">
-            <button className={!isRegister ? 'active' : ''} type="button" onClick={() => setMode('login')}>Connexion</button>
-            <button className={isRegister ? 'active' : ''} type="button" onClick={() => setMode('register')}>Créer compte</button>
-          </div>
-          <form className="emailAuthForm" onSubmit={submitEmailAuth}>
-            <label>
-              Pseudo
-              <input value={form.pseudo} onChange={(event) => updateField('pseudo', event.target.value)} autoComplete="username" required />
-            </label>
-            {isRegister ? (
-            <label>
-              Adresse email
-              <input value={form.email} onChange={(event) => updateField('email', event.target.value)} type="email" autoComplete="email" required={isRegister} />
-            </label>
-            ) : null}
-            <label>
-              Mot de passe
-              <input value={form.password} onChange={(event) => updateField('password', event.target.value)} type="password" autoComplete={isRegister ? 'new-password' : 'current-password'} minLength={8} required />
-            </label>
-            {isRegister ? (
-              <label>
-                Confirmer le mot de passe
-                <input value={form.confirmPassword} onChange={(event) => updateField('confirmPassword', event.target.value)} type="password" autoComplete="new-password" minLength={8} required />
-              </label>
-            ) : null}
-            <button className="primaryAction" type="submit" disabled={busy}>
-              {busy ? <Loader2 className="spin" size={18} /> : <ArrowRight size={18} />}
-              {isRegister ? 'Créer mon compte' : 'Me connecter'}
-            </button>
-          </form>
           <div className="ssoFallback">
-            <a className="secondaryAction" href={getAuthUrl('register')}>Créer via HudLife</a>
-            <a className="secondaryAction" href={getAuthUrl('login')}>Connexion HudLife</a>
+            <a className="secondaryAction" href={getAuthUrl('login')}>Connexion Metani</a>
+            <a className="secondaryAction" href={getAuthUrl('register')}>Créer un compte Metani</a>
           </div>
           <div className="publicLinks" aria-label="Liens publics iTani">
             {OFFICIAL_LINKS.map((link) => (
@@ -447,47 +409,8 @@ function App() {
     setActivity(readJson(ACTIVITY_KEY, []));
   }
 
-  async function handleEmailAuth(mode, form) {
-    const email = form.email.trim().toLowerCase();
-    const pseudo = form.pseudo.trim();
-    const password = form.password;
-    if (mode === 'register' && (!pseudo || !email)) throw new Error('Pseudo, email et mot de passe requis.');
-    if (mode === 'login' && !pseudo) throw new Error('Pseudo et mot de passe requis.');
-    if (!password) throw new Error('Mot de passe requis.');
-    if (password.length < 8) throw new Error('Le mot de passe doit contenir au moins 8 caractères.');
-    if (mode === 'register' && password !== form.confirmPassword) {
-      throw new Error('Les deux mots de passe ne correspondent pas.');
-    }
-
-    setError('');
-    setStatus(mode === 'register' ? 'création compte' : 'connexion email');
-    try {
-      const endpoint = mode === 'register' ? '/api/auth/register' : '/api/auth/login';
-      const payload = mode === 'register'
-        ? {
-            app: 'inc_wallet',
-            pseudo,
-            email,
-            password,
-          }
-        : {
-          app: 'inc_wallet',
-          pseudo,
-          username: pseudo,
-          identifier: pseudo,
-          password,
-        };
-      const data = await fetchJson(`${HUDLIFE_PORTAL}${endpoint}`, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-      await applyAuthSession(data, mode);
-      setStatus('prêt');
-    } catch (err) {
-      setError(err.message || 'Connexion impossible.');
-      setStatus('prêt');
-      throw err;
-    }
+  async function handleEmailAuth(mode) {
+    window.location.href = getAuthUrl(mode === 'register' ? 'register' : 'login');
   }
 
   useEffect(() => {
@@ -501,7 +424,7 @@ function App() {
         setUser(data.user);
         setBalance(data.balance_formatted || `${data.balance || '0'} ${nativeCurrency.symbol}`);
         refreshWalletData(data.user?.wallet_address || data.user?.address).catch(() => {});
-        writeActivity({ type: 'sso', title: 'Session Metani connectée', detail: data.user?.pseudo || data.user?.address || 'SSO HudLife' });
+        writeActivity({ type: 'sso', title: 'Session Metani connectée', detail: data.user?.pseudo || data.user?.address || 'SSO Metani' });
         setActivity(readJson(ACTIVITY_KEY, []));
       })
       .catch((err) => {

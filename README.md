@@ -28,7 +28,7 @@ inc_wallet ne cree pas une identite separee. Il consomme le Metani ID central fo
 ## Fonctionnalites
 
 - connexion avec email + mot de passe via l'API HudLife;
-- fallback HudLife SSO;
+- fallback Metani ID;
 - reception ITANI via adresse wallet liee;
 - envoi ITANI via wallet externe EVM uniquement;
 - staking ITANI via `https://relay.itaninetworkchain.com/api/wallet/stake-tokens`;
