@@ -142,6 +142,31 @@ a {
   gap: 7px;
 }
 
+.passwordInput {
+  position: relative;
+  display: block;
+}
+
+.passwordInput input {
+  padding-right: 48px;
+}
+
+.passwordInput button {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.72);
+  color: var(--text);
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
 .authFieldsGrid,
 .ssoFallback {
   display: grid;
