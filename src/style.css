@@ -610,6 +610,100 @@ input[type="range"] {
   padding: 0;
 }
 
+.cardDesigner {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.86fr) minmax(0, 1.14fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.cardPreview {
+  position: relative;
+  display: grid;
+  min-height: 210px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  padding: 22px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.34);
+}
+
+.cardPreviewGlow {
+  position: absolute;
+  right: -72px;
+  bottom: -92px;
+  width: 210px;
+  height: 210px;
+  border-radius: 50%;
+  filter: blur(18px);
+  opacity: 0.55;
+}
+
+.cardPreviewTop,
+.cardPreviewBottom {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cardPreviewTop span,
+.cardPreviewTop img {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.cardPreviewMark {
+  position: relative;
+  z-index: 1;
+  align-self: end;
+  font-size: 1.15rem;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+}
+
+.cardPreviewSymbols {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 26px;
+}
+
+.cardPreviewSymbols span {
+  display: grid;
+  min-width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  padding: 0 7px;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.cardPreviewBottom b {
+  letter-spacing: 0.08em;
+}
+
+.designFields {
+  display: grid;
+  gap: 12px;
+}
+
+.formSplit {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .amountInput {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -818,9 +912,10 @@ code {
 }
 
 .ratePanel {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 16px;
   align-items: center;
-  justify-content: space-between;
   border: 1px solid rgba(34, 211, 238, 0.24);
   border-radius: 8px;
   background: rgba(34, 211, 238, 0.08);
@@ -830,6 +925,11 @@ code {
 .ratePanel strong {
   color: #67e8f9;
   font-size: 2rem;
+}
+
+.ratePanel small {
+  grid-column: 1 / -1;
+  color: #bae6fd;
 }
 
 .alert {
@@ -1005,6 +1105,8 @@ code {
 
   .heroCard,
   .searchLine,
+  .cardDesigner,
+  .formSplit,
   .authFieldsGrid,
   .ssoFallback {
     grid-template-columns: 1fr;
@@ -1031,5 +1133,267 @@ code {
 
   .activityItem time {
     grid-column: 2;
+  }
+}
+
+.sheikLayout {
+  display: grid;
+  grid-template-columns: minmax(320px, 1.08fr) minmax(260px, 0.92fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.sheikLayout form:last-child {
+  grid-column: 2;
+}
+
+.sheikBanknote {
+  position: relative;
+  grid-row: span 2;
+  min-height: 330px;
+  overflow: hidden;
+  border: 1px solid rgba(110, 231, 183, 0.48);
+  border-radius: 8px;
+  padding: 22px;
+  color: #ecfeff;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(34, 211, 238, 0.24), transparent 30%),
+    radial-gradient(circle at 18% 18%, rgba(132, 204, 22, 0.28), transparent 28%),
+    linear-gradient(135deg, rgba(3, 7, 18, 0.98), rgba(6, 78, 59, 0.86) 48%, rgba(8, 47, 73, 0.96));
+  box-shadow: 0 26px 90px rgba(16, 185, 129, 0.24), inset 0 0 42px rgba(125, 211, 252, 0.16);
+}
+
+.sheikBanknote::before,
+.sheikBanknote::after {
+  content: "";
+  position: absolute;
+  inset: 12px;
+  border: 1px solid rgba(190, 242, 100, 0.42);
+  border-radius: 8px;
+  pointer-events: none;
+}
+
+.sheikBanknote::after {
+  inset: 24px;
+  border-color: rgba(103, 232, 249, 0.32);
+  background-image:
+    repeating-linear-gradient(90deg, rgba(236, 254, 255, 0.08) 0 1px, transparent 1px 18px),
+    repeating-linear-gradient(0deg, rgba(190, 242, 100, 0.07) 0 1px, transparent 1px 22px);
+  mix-blend-mode: screen;
+}
+
+.sheikWatermark {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: rgba(236, 254, 255, 0.08);
+  font-size: clamp(4rem, 16vw, 9rem);
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transform: rotate(-12deg);
+  text-shadow: 0 0 28px rgba(34, 211, 238, 0.36);
+  pointer-events: none;
+}
+
+.sheikSerial,
+.sheikAmount,
+.sheikFooter,
+.sheikSeal {
+  position: relative;
+  z-index: 2;
+}
+
+.sheikSerial {
+  width: fit-content;
+  border: 1px solid rgba(190, 242, 100, 0.44);
+  border-radius: 8px;
+  padding: 6px 10px;
+  color: #bef264;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  background: rgba(2, 6, 23, 0.52);
+}
+
+.sheikAmount {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 18px;
+  text-shadow: 0 0 18px rgba(190, 242, 100, 0.52);
+}
+
+.sheikAmount span {
+  font-size: clamp(2.8rem, 7vw, 5.4rem);
+  line-height: 0.9;
+  font-weight: 950;
+}
+
+.sheikAmount b {
+  color: #67e8f9;
+  font-size: 1.25rem;
+}
+
+.sheikPortrait {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  top: 50%;
+  width: min(42%, 230px);
+  aspect-ratio: 1;
+  transform: translate(-50%, -45%);
+  overflow: hidden;
+  border: 1px solid rgba(236, 254, 255, 0.24);
+  border-radius: 50%;
+  opacity: 0.72;
+  filter: saturate(1.2) contrast(1.12) drop-shadow(0 0 24px rgba(34, 211, 238, 0.44));
+  box-shadow: inset 0 0 28px rgba(3, 7, 18, 0.76), 0 0 50px rgba(132, 204, 22, 0.26);
+}
+
+.sheikPortrait img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sheikArboreal {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: 50%;
+  width: min(54%, 300px);
+  aspect-ratio: 1;
+  transform: translate(-50%, -45%);
+  background:
+    radial-gradient(circle, transparent 0 34%, rgba(190, 242, 100, 0.22) 35% 36%, transparent 37%),
+    conic-gradient(from 8deg, transparent 0 8deg, rgba(190, 242, 100, 0.56) 9deg 10deg, transparent 11deg 29deg, rgba(34, 211, 238, 0.5) 30deg 31deg, transparent 32deg 61deg, rgba(190, 242, 100, 0.5) 62deg 63deg, transparent 64deg 100deg, rgba(34, 211, 238, 0.48) 101deg 102deg, transparent 103deg 360deg);
+  border-radius: 50%;
+  filter: drop-shadow(0 0 12px rgba(190, 242, 100, 0.72));
+  opacity: 0.82;
+  pointer-events: none;
+}
+
+.sheikSeal {
+  position: absolute;
+  right: 24px;
+  top: 24px;
+  display: grid;
+  width: 60px;
+  height: 60px;
+  place-items: center;
+  border: 1px solid rgba(103, 232, 249, 0.52);
+  border-radius: 50%;
+  color: #cffafe;
+  font-size: 2.1rem;
+  font-weight: 900;
+  background: rgba(8, 47, 73, 0.52);
+  box-shadow: 0 0 28px rgba(34, 211, 238, 0.42), inset 0 0 18px rgba(190, 242, 100, 0.18);
+}
+
+.sheikFooter {
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 850;
+}
+
+.sheikFooter span,
+.sheikFooter strong {
+  overflow-wrap: anywhere;
+}
+
+.sheikFooter strong {
+  color: #bef264;
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+}
+
+@media (max-width: 860px) {
+  .sheikLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .sheikLayout form:last-child {
+    grid-column: auto;
+  }
+
+  .sheikBanknote {
+    grid-row: auto;
+    min-height: 290px;
+  }
+}
+
+.moodGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.moodGrid button {
+  min-height: 38px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.56);
+  color: #dbeafe;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.moodGrid button.active {
+  border-color: rgba(34, 211, 238, 0.8);
+  color: #67e8f9;
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.14);
+}
+
+.sheikBanknote.mood-rainbow {
+  background:
+    radial-gradient(circle at 50% 42%, rgba(34, 211, 238, 0.24), transparent 30%),
+    radial-gradient(circle at 18% 18%, rgba(132, 204, 22, 0.28), transparent 28%),
+    linear-gradient(135deg, rgba(3, 7, 18, 0.98), rgba(126, 34, 206, 0.72) 24%, rgba(6, 78, 59, 0.86) 52%, rgba(190, 24, 93, 0.8));
+}
+
+.sheikBanknote.mood-noir {
+  background: radial-gradient(circle at 50% 42%, rgba(148, 163, 184, 0.2), transparent 30%), linear-gradient(135deg, #020617, #111827 52%, #000);
+}
+
+.sheikBanknote.mood-bleu {
+  background: radial-gradient(circle at 50% 42%, rgba(125, 211, 252, 0.26), transparent 30%), linear-gradient(135deg, #020617, #075985 50%, #1d4ed8);
+}
+
+.sheikBanknote.mood-blanc {
+  color: #0f172a;
+  background: radial-gradient(circle at 50% 42%, rgba(14, 165, 233, 0.18), transparent 30%), linear-gradient(135deg, #f8fafc, #e0f2fe 48%, #f1f5f9);
+}
+
+.sheikBanknote.mood-rouge {
+  background: radial-gradient(circle at 50% 42%, rgba(251, 191, 36, 0.22), transparent 30%), linear-gradient(135deg, #1f0303, #991b1b 50%, #450a0a);
+}
+
+.sheikBanknote.mood-jean {
+  background: radial-gradient(circle at 50% 42%, rgba(147, 197, 253, 0.18), transparent 30%), linear-gradient(135deg, #0f172a, #1e3a8a 46%, #334155);
+}
+
+.sheikBanknote.mood-vert {
+  background: radial-gradient(circle at 50% 42%, rgba(190, 242, 100, 0.24), transparent 30%), linear-gradient(135deg, #022c22, #15803d 52%, #064e3b);
+}
+
+.sheikBanknote.mood-gris {
+  background: radial-gradient(circle at 50% 42%, rgba(226, 232, 240, 0.16), transparent 30%), linear-gradient(135deg, #111827, #475569 52%, #0f172a);
+}
+
+.sheikBanknote.mood-blanc .sheikWatermark {
+  color: rgba(15, 23, 42, 0.08);
+}
+
+@media (max-width: 620px) {
+  .moodGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
