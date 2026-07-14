@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Coins,
   Copy,
+  CreditCard,
   Database,
   ExternalLink,
   Eye,
@@ -18,10 +19,12 @@ import {
   History,
   Image,
   Layers,
+  Landmark,
   Loader2,
   LockKeyhole,
   LogOut,
   Network,
+  Palette,
   RefreshCw,
   Repeat2,
   Bitcoin,
@@ -47,18 +50,30 @@ const METANI_SSO = (
   `${METANI_PORTAL}/api/sso`
 ).replace(/\/+$/, '');
 const CLIENT_ID = import.meta.env.VITE_METANI_SSO_CLIENT_ID || import.meta.env.VITE_ITANI_SSO_CLIENT_ID || 'inc-wallet-web';
+const ITANI_PAY_API = (import.meta.env.VITE_ITANI_PAY_API_URL || 'https://pay.itaninetworkchain.com').replace(/\/+$/, '');
 const STAKING_ENDPOINT =
   import.meta.env.VITE_ITANI_STAKING_ENDPOINT ||
-  'https://relay.itaninetworkchain.com/api/wallet/stake-tokens';
+  'https://node.itaninetworkchain.com/api/wallet/stake-tokens';
 const activeNetwork = network.mainnet || network;
 const nativeCurrency = activeNetwork.nativeCurrency || network.nativeCurrency;
-const JSON_RPC_ENDPOINT = activeNetwork?.rpcUrls?.[0] || 'https://relay.itaninetworkchain.com/jsonrpc';
+const JSON_RPC_ENDPOINT = activeNetwork?.rpcUrls?.[0] || 'https://node.itaninetworkchain.com/jsonrpc';
 const NFT_BOX_ENDPOINT = import.meta.env.VITE_NFT_BOX_ENDPOINT || '/nft-marketplace.json';
 const ITANI_PER_BTC = Number(import.meta.env.VITE_ITANI_BTC_RATE || 10000);
 const SATOSHIS_PER_BTC = 100000000;
 const BRIDGE_READ_ONLY = true;
 const MARKET_NOT_LISTED = 'Non coté';
 const MARKET_LIVE = import.meta.env.VITE_ITANI_MARKET_LIVE === 'true';
+const sheikMoods = [
+  { id: 'rainbow', label: 'Rainbow' },
+  { id: 'noir', label: 'Noir' },
+  { id: 'bleu', label: 'Bleu' },
+  { id: 'blanc', label: 'Blanc' },
+  { id: 'rouge', label: 'Rouge' },
+  { id: 'jean', label: 'Jean' },
+  { id: 'vert', label: 'Vert' },
+  { id: 'gris', label: 'Gris' },
+];
+
 const OFFICIAL_LINKS = [
   { label: 'Explorer', href: 'https://explorer.itaninetworkchain.com' },
   { label: 'RPC public', href: 'https://node.itaninetworkchain.com/jsonrpc' },
@@ -68,6 +83,7 @@ const OFFICIAL_LINKS = [
 const tabs = [
   { id: 'home', label: 'Dashboard', icon: BarChart3 },
   { id: 'portfolio', label: 'Portfolio', icon: Wallet },
+  { id: 'accounts', label: 'Comptes', icon: Landmark },
   { id: 'send', label: 'Envoyer', icon: ArrowUpRight },
   { id: 'receive', label: 'Recevoir', icon: ArrowDownLeft },
   { id: 'stake', label: 'Staking', icon: Sparkles },
@@ -129,13 +145,13 @@ function getAuthUrl(mode = 'login') {
 
 async function fetchJson(url, options = {}) {
   const response = await fetch(url, {
+    ...options,
+    credentials: 'include',
     headers: {
       Accept: 'application/json',
       ...(options.body ? { 'Content-Type': 'application/json' } : {}),
       ...(options.headers || {}),
     },
-    credentials: 'include',
-    ...options,
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
@@ -336,6 +352,19 @@ function App() {
   const [walletNfts, setWalletNfts] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResult, setSearchResult] = useState(null);
+  const [bankData, setBankData] = useState(null);
+  const [bankLoading, setBankLoading] = useState(false);
+  const [bankMessage, setBankMessage] = useState('');
+  const [transferForm, setTransferForm] = useState({ to: '', amount: '', currency: 'EUR', memo: '' });
+  const [cardAddress, setCardAddress] = useState({ full_name: '', line1: '', line2: '', postal_code: '', city: '', country: 'FR', phone: '' });
+  const [issuingDesign, setIssuingDesign] = useState({ label: 'iTani Card', background_color: '#05070C', accent_color: '#22D3EE', text_color: '#F8FAFC', logo_url: '', symbols: '', second_line: 'iTani Pay', shipping_service: 'standard' });
+  const [issuingQuote, setIssuingQuote] = useState(null);
+  const [installmentReactivationForm, setInstallmentReactivationForm] = useState({ monthly_due: '', payment_method: 'card', crypto_asset: 'BTC', reason: '' });
+  const [sheikForm, setSheikForm] = useState({ amount: '', currency: 'EUR', beneficiary_email: '', beneficiary_name: '', available_at: '', memo: '', mood: 'rainbow' });
+  const [sheikRedeemForm, setSheikRedeemForm] = useState({ sheik_id: '', claim_code: '', delivery_name: '', delivery_address: '' });
+  const [sheikResult, setSheikResult] = useState(null);
+  const [sheikPortraitPremium, setSheikPortraitPremium] = useState(null);
+  const [sheikPortraitUrl, setSheikPortraitUrl] = useState('');
 
   const walletAddress = user?.wallet_address || user?.address || '';
   const displayName = user?.display_name || user?.username || user?.pseudo || 'Compte Metani';
@@ -387,6 +416,36 @@ function App() {
     if (nfts.status === 'fulfilled') setWalletNfts(pickResult(nfts.value));
   }
 
+  async function bankRequest(path, options = {}) {
+    const token = localStorage.getItem(SSO_TOKEN_KEY);
+    if (!token) throw new Error('Connexion Metani requise.');
+    return fetchJson(`${ITANI_PAY_API}${path}`, {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(options.headers || {}),
+      },
+    });
+  }
+
+  async function refreshBankData() {
+    setBankLoading(true);
+    try {
+      const data = await bankRequest('/api/banks/me');
+      setBankData(data);
+      bankRequest('/api/banks/me/sheiks/portrait-premium').then((premium) => setSheikPortraitPremium(premium.portrait_premium)).catch(() => {});
+      setBankMessage('Compte iTani Bank synchronisé');
+      setError('');
+      return data;
+    } catch (err) {
+      setBankMessage('');
+      setError(err.message || 'Compte iTani Bank indisponible.');
+      return null;
+    } finally {
+      setBankLoading(false);
+    }
+  }
+
   async function applyAuthSession(data, source = 'email') {
     const token = data.sso_token || data.token || data.session_token;
     const account = data.user || data.profile || null;
@@ -400,6 +459,7 @@ function App() {
     await Promise.allSettled([
       refreshChainData(),
       refreshWalletData(account.wallet_address || account.address),
+      refreshBankData(),
     ]);
     writeActivity({
       type: source,
@@ -424,6 +484,7 @@ function App() {
         setUser(data.user);
         setBalance(data.balance_formatted || `${data.balance || '0'} ${nativeCurrency.symbol}`);
         refreshWalletData(data.user?.wallet_address || data.user?.address).catch(() => {});
+        refreshBankData().catch(() => {});
         writeActivity({ type: 'sso', title: 'Session Metani connectée', detail: data.user?.pseudo || data.user?.address || 'SSO Metani' });
         setActivity(readJson(ACTIVITY_KEY, []));
       })
@@ -451,6 +512,7 @@ function App() {
       await Promise.allSettled([
         refreshChainData(),
         refreshWalletData(data.user?.wallet_address || data.user?.address),
+        refreshBankData(),
       ]);
       setError('');
     } catch (err) {
@@ -568,6 +630,257 @@ function App() {
     } catch (err) {
       setError(err.message || 'Staking impossible.');
       setStatus('prêt');
+    }
+  }
+
+  async function submitInternalTransfer(event) {
+    event.preventDefault();
+    setError('');
+    setTxHash('');
+    setBankMessage('');
+    if (!transferForm.to.trim() || !transferForm.amount || Number(transferForm.amount) <= 0) {
+      setError('Destinataire et montant requis pour le virement.');
+      return;
+    }
+    setBankLoading(true);
+    try {
+      const data = await bankRequest('/api/banks/me/transfer', {
+        method: 'POST',
+        body: JSON.stringify(transferForm),
+      });
+      if (data.success === false) throw new Error(data.error || 'Virement refusé.');
+      setBankMessage(`Virement envoyé: ${data.transfer.amount} ${data.transfer.currency}`);
+      setTransferForm({ to: '', amount: '', currency: transferForm.currency, memo: '' });
+      writeActivity({ type: 'bank', title: 'Virement iTani Bank', detail: data.transfer.to?.user?.display_name || data.transfer.currency });
+      setActivity(readJson(ACTIVITY_KEY, []));
+      await refreshBankData();
+    } catch (err) {
+      setError(err.message || 'Virement impossible.');
+    } finally {
+      setBankLoading(false);
+    }
+  }
+
+  async function requestVirtualCard() {
+    setError('');
+    setBankMessage('');
+    setBankLoading(true);
+    try {
+      await bankRequest('/api/banks/me/cards/virtual', { method: 'POST' });
+      setBankMessage('Carte virtuelle iTani Bank active.');
+      await refreshBankData();
+    } catch (err) {
+      setError(err.message || 'Carte virtuelle indisponible.');
+    } finally {
+      setBankLoading(false);
+    }
+  }
+
+
+  function issuingPayload(type) {
+    return {
+      type,
+      card_holder_name: cardAddress.full_name,
+      shipping_service: issuingDesign.shipping_service,
+      shipping_address: cardAddress,
+      design: {
+        label: issuingDesign.label,
+        background_color: issuingDesign.background_color,
+        accent_color: issuingDesign.accent_color,
+        text_color: issuingDesign.text_color,
+        logo_url: issuingDesign.logo_url,
+        symbols: issuingDesign.symbols.split(',').map((item) => item.trim()).filter(Boolean),
+        second_line: issuingDesign.second_line,
+      },
+    };
+  }
+
+  async function quoteIssuingCard(type = 'physical') {
+    setError('');
+    setBankMessage('');
+    setBankLoading(true);
+    try {
+      const data = await bankRequest('/api/banks/me/issuing/cards/quote', {
+        method: 'POST',
+        body: JSON.stringify(issuingPayload(type)),
+      });
+      setIssuingQuote(data);
+      setBankMessage('Devis ' + (type === 'physical' ? 'carte physique' : 'carte virtuelle') + ': ' + data.fee_quote.total + ' ' + data.fee_quote.currency);
+    } catch (err) {
+      setError(err.message || 'Devis carte impossible.');
+    } finally {
+      setBankLoading(false);
+    }
+  }
+
+  async function requestSheikPortraitPremium() {
+    setError('');
+    setBankMessage('');
+    setBankLoading(true);
+    try {
+      const data = await bankRequest('/api/banks/me/sheiks/portrait-premium/request', {
+        method: 'POST',
+        body: JSON.stringify({ portrait_url: sheikPortraitUrl }),
+      });
+      setSheikPortraitPremium(data.portrait_premium);
+      setBankMessage('Option portrait Sheik demandée: ' + data.payment_instructions.amount_eur + ' EUR · Référence ' + data.payment_instructions.reference);
+    } catch (err) {
+      setError(err.message || 'Demande portrait Sheik impossible.');
+    } finally {
+      setBankLoading(false);
+    }
+  }
+
+  async function updateSheikPortraitPremium() {
+    setError('');
+    setBankMessage('');
+    setBankLoading(true);
+    try {
+      const data = await bankRequest('/api/banks/me/sheiks/portrait-premium/profile', {
+        method: 'POST',
+        body: JSON.stringify({ portrait_url: sheikPortraitUrl }),
+      });
+      setSheikPortraitPremium(data.portrait_premium);
+      setBankMessage('Portrait personnalisé Sheik mis à jour.');
+    } catch (err) {
+      setError(err.message || 'Mise à jour portrait Sheik impossible.');
+    } finally {
+      setBankLoading(false);
+    }
+  }
+
+  async function createSheik(event) {
+    event.preventDefault();
+    setError('');
+    setBankMessage('');
+    setBankLoading(true);
+    try {
+      const data = await bankRequest('/api/banks/me/sheiks', {
+        method: 'POST',
+        body: JSON.stringify({ ...sheikForm, mood: sheikForm.mood, portrait_url: sheikPortraitPremium?.active ? sheikPortraitUrl || sheikPortraitPremium?.portrait_url : undefined }),
+      });
+      setSheikResult(data.sheik);
+      setBankMessage('Sheik émis: ' + data.sheik.reference + ' | Code: ' + data.sheik.claim_code);
+      writeActivity({ type: 'bank', title: 'Sheik émis', detail: data.sheik.reference });
+      setActivity(readJson(ACTIVITY_KEY, []));
+      await refreshBankData();
+    } catch (err) {
+      setError(err.message || 'Emission Sheik impossible.');
+    } finally {
+      setBankLoading(false);
+    }
+  }
+
+  async function requestSheikPrintPass(event) {
+    event.preventDefault();
+    setError('');
+    setBankMessage('');
+    setBankLoading(true);
+    try {
+      const sheikId = sheikRedeemForm.sheik_id || sheikResult?.id || sheikResult?.reference;
+      if (!sheikId) throw new Error('Référence Sheik requise.');
+      const data = await bankRequest('/api/banks/me/sheiks/' + encodeURIComponent(sheikId) + '/print-pass', {
+        method: 'POST',
+        body: JSON.stringify({ delivery_name: sheikRedeemForm.delivery_name, delivery_address: sheikRedeemForm.delivery_address }),
+      });
+      setSheikResult(data.sheik);
+      setBankMessage('Impression Sheik demandée: ' + data.print_pass.format + ' · ' + data.print_pass.status);
+      writeActivity({ type: 'bank', title: 'Impression Sheik demandée', detail: data.sheik.reference });
+      setActivity(readJson(ACTIVITY_KEY, []));
+    } catch (err) {
+      setError(err.message || 'Demande impression Sheik impossible.');
+    } finally {
+      setBankLoading(false);
+    }
+  }
+
+  async function redeemSheik(event) {
+    event.preventDefault();
+    setError('');
+    setBankMessage('');
+    setBankLoading(true);
+    try {
+      const data = await bankRequest('/api/banks/me/sheiks/' + encodeURIComponent(sheikRedeemForm.sheik_id) + '/redeem', {
+        method: 'POST',
+        body: JSON.stringify({ claim_code: sheikRedeemForm.claim_code }),
+      });
+      setBankMessage('Sheik encaissé: ' + data.sheik.amount + ' ' + data.sheik.currency);
+      writeActivity({ type: 'bank', title: 'Sheik encaissé', detail: data.sheik.reference });
+      setActivity(readJson(ACTIVITY_KEY, []));
+      await refreshBankData();
+    } catch (err) {
+      setError(err.message || 'Encaissement Sheik impossible.');
+    } finally {
+      setBankLoading(false);
+    }
+  }
+
+  async function requestInstallmentReactivation(event) {
+    event.preventDefault();
+    setError('');
+    setBankMessage('');
+    setBankLoading(true);
+    try {
+      const data = await bankRequest('/api/banks/me/installments/reactivation-request', {
+        method: 'POST',
+        body: JSON.stringify({
+          monthly_due: installmentReactivationForm.monthly_due,
+          payment_method: installmentReactivationForm.payment_method,
+          crypto_asset: installmentReactivationForm.crypto_asset,
+          reason: installmentReactivationForm.reason,
+        }),
+      });
+      setBankMessage('Demande envoyée. Référence paiement: ' + data.payment_instructions.reference + ' | Total: ' + data.payment_instructions.amount_eur + ' EUR');
+      writeActivity({ type: 'bank', title: 'Demande réactivation paiement différé', detail: data.payment_instructions.reference });
+      setActivity(readJson(ACTIVITY_KEY, []));
+    } catch (err) {
+      setError(err.message || 'Demande de réactivation impossible.');
+    } finally {
+      setBankLoading(false);
+    }
+  }
+
+  async function issueExternalCard(type = 'virtual') {
+    setError('');
+    setBankMessage('');
+    setBankLoading(true);
+    try {
+      const path = type === 'physical' ? '/api/banks/me/issuing/cards/physical' : '/api/banks/me/issuing/cards/virtual';
+      const data = await bankRequest(path, {
+        method: 'POST',
+        body: JSON.stringify(issuingPayload(type)),
+      });
+      if (data.success === false) throw new Error(data.error || 'Emission Stripe Issuing refusée.');
+      setBankMessage((type === 'physical' ? 'Carte physique' : 'Carte virtuelle') + ' Stripe Issuing créée: ' + data.card.status);
+      writeActivity({ type: 'bank', title: type === 'physical' ? 'Carte physique Stripe demandée' : 'Carte virtuelle Stripe créée', detail: data.card.stripe_card_id });
+      setActivity(readJson(ACTIVITY_KEY, []));
+      await refreshBankData();
+    } catch (err) {
+      setError(err.message || 'Emission Stripe Issuing impossible.');
+    } finally {
+      setBankLoading(false);
+    }
+  }
+
+  async function requestPhysicalCard(event) {
+    event.preventDefault();
+    setError('');
+    setBankMessage('');
+    setBankLoading(true);
+    try {
+      const data = await bankRequest('/api/banks/me/cards/physical', {
+        method: 'POST',
+        body: JSON.stringify({ shipping_address: cardAddress, card_holder_name: cardAddress.full_name }),
+      });
+      if (data.success === false) throw new Error(data.error || 'Demande de carte refusée.');
+      setBankMessage(`Demande carte physique enregistrée: ${data.physical_card_order.status}`);
+      writeActivity({ type: 'bank', title: 'Carte physique demandée', detail: data.physical_card_order.id });
+      setActivity(readJson(ACTIVITY_KEY, []));
+      await refreshBankData();
+    } catch (err) {
+      setError(err.message || 'Demande de carte physique impossible.');
+    } finally {
+      setBankLoading(false);
     }
   }
 
@@ -767,6 +1080,222 @@ function App() {
             <section className="card wide">
               <h2>Historique blockchain</h2>
               <ChainList items={addressHistory?.transactions || addressHistory?.history || []} empty="Aucune transaction trouvée pour ce wallet." />
+            </section>
+          </div>
+        ) : null}
+
+        {activeTab === 'accounts' ? (
+          <div className="dashboardGrid accountsGrid">
+            <section className="card heroCard wide">
+              <div>
+                <p className="eyebrow">iTani Bank</p>
+                <h2>Comptes, virements et cartes</h2>
+                <p>La consultation, les virements internes et les demandes de carte passent par iTani Pay Banks avec le SSO Metani.</p>
+              </div>
+              <div className="heroActions">
+                <button className="primaryAction compact" type="button" onClick={refreshBankData} disabled={bankLoading}>
+                  {bankLoading ? <Loader2 className="spin" size={18} /> : <RefreshCw size={18} />} Synchroniser
+                </button>
+              </div>
+            </section>
+
+            {bankMessage ? <div className="alert success wide">{bankMessage}</div> : null}
+
+            <section className="card">
+              <h2>Compte financier</h2>
+              <InfoRow label="Numéro" value={bankData?.account?.wallet?.internal_account_number || '-'} />
+              <InfoRow label="RIB" value={bankData?.account?.rib_reference?.reference || '-'} />
+              <InfoRow label="BIC/SWIFT" value={bankData?.account?.rib_reference?.bic || '-'} />
+              <InfoRow label="KYC" value={bankData?.account?.user?.kyc_status || '-'} />
+            </section>
+
+            <section className="card">
+              <h2>Soldes</h2>
+              {Object.entries(bankData?.balances || {}).length ? Object.entries(bankData.balances).map(([currency, value]) => (
+                <div className="metric" key={currency}><span>{currency}</span><strong>{value}</strong></div>
+              )) : <div className="emptyState compact"><Wallet size={24} /><strong>Aucun solde bancaire interne.</strong></div>}
+            </section>
+
+            <section className="card">
+              <h2>Carte virtuelle</h2>
+              <InfoRow label="Statut" value={bankData?.account?.virtual_card?.status || '-'} />
+              <InfoRow label="Réseau" value={bankData?.account?.virtual_card?.network || '-'} />
+              <InfoRow label="Carte" value={bankData?.account?.virtual_card?.card_number_masked || '-'} />
+              <button className="primaryAction compact" type="button" onClick={requestVirtualCard} disabled={bankLoading}>
+                <CreditCard size={18} /> Activer
+              </button>
+            </section>
+
+            <section className="card formCard">
+              <h2>Virement interne</h2>
+              <form onSubmit={submitInternalTransfer}>
+                <label>Compte, RIB, wallet ou email destinataire</label>
+                <input value={transferForm.to} onChange={(event) => setTransferForm({ ...transferForm, to: event.target.value })} placeholder="ITP..., ITANI-..., wallet ou email" />
+                <label>Montant</label>
+                <div className="amountInput">
+                  <input value={transferForm.amount} onChange={(event) => setTransferForm({ ...transferForm, amount: event.target.value })} inputMode="decimal" placeholder="0.00" />
+                  <span>{transferForm.currency}</span>
+                </div>
+                <label>Devise</label>
+                <input value={transferForm.currency} onChange={(event) => setTransferForm({ ...transferForm, currency: event.target.value.toUpperCase() })} placeholder="EUR" />
+                <label>Mémo</label>
+                <input value={transferForm.memo} onChange={(event) => setTransferForm({ ...transferForm, memo: event.target.value })} placeholder="Optionnel" />
+                <button className="primaryAction" type="submit" disabled={bankLoading}>Envoyer le virement <ArrowUpRight size={18} /></button>
+              </form>
+            </section>
+
+            <section className="card formCard wide">
+              <h2>Design carte Stripe</h2>
+              <div className="cardDesigner">
+                <div className="cardPreview" style={{ background: issuingDesign.background_color, color: issuingDesign.text_color }}>
+                  <div className="cardPreviewGlow" style={{ background: issuingDesign.accent_color }} />
+                  <div className="cardPreviewTop">
+                    {issuingDesign.logo_url ? <img src={issuingDesign.logo_url} alt="Logo carte" /> : <span style={{ background: issuingDesign.accent_color }}><Palette size={22} /></span>}
+                    <strong>{issuingDesign.label}</strong>
+                  </div>
+                  <div className="cardPreviewMark">•••• •••• •••• 4242</div>
+                  <div className="cardPreviewSymbols">
+                    {issuingDesign.symbols.split(',').map((item) => item.trim()).filter(Boolean).slice(0, 6).map((item) => <span key={item}>{item}</span>)}
+                  </div>
+                  <div className="cardPreviewBottom"><small>{issuingDesign.second_line}</small><b>VISA</b></div>
+                </div>
+                <div className="designFields">
+                  <label>Nom affiché</label>
+                  <input value={issuingDesign.label} onChange={(event) => setIssuingDesign({ ...issuingDesign, label: event.target.value })} placeholder="iTani Card" />
+                  <label>Logo URL</label>
+                  <input value={issuingDesign.logo_url} onChange={(event) => setIssuingDesign({ ...issuingDesign, logo_url: event.target.value })} placeholder="https://.../logo.png" />
+                  <label>Ligne carte physique</label>
+                  <input value={issuingDesign.second_line} onChange={(event) => setIssuingDesign({ ...issuingDesign, second_line: event.target.value.slice(0, 24) })} placeholder="iTani Pay" />
+                  <label>Symboles</label>
+                  <input value={issuingDesign.symbols} onChange={(event) => setIssuingDesign({ ...issuingDesign, symbols: event.target.value })} placeholder="∞, €, ★" />
+                  <div className="formSplit">
+                    <label>Fond<input type="color" value={issuingDesign.background_color} onChange={(event) => setIssuingDesign({ ...issuingDesign, background_color: event.target.value })} /></label>
+                    <label>Accent<input type="color" value={issuingDesign.accent_color} onChange={(event) => setIssuingDesign({ ...issuingDesign, accent_color: event.target.value })} /></label>
+                  </div>
+                  <div className="formSplit">
+                    <label>Texte<input type="color" value={issuingDesign.text_color} onChange={(event) => setIssuingDesign({ ...issuingDesign, text_color: event.target.value })} /></label>
+                    <label>Livraison<input value={issuingDesign.shipping_service} onChange={(event) => setIssuingDesign({ ...issuingDesign, shipping_service: event.target.value.toLowerCase() })} placeholder="standard ou express" /></label>
+                  </div>
+                  {issuingQuote?.fee_quote ? <div className="ratePanel"><span>Total estimé</span><strong>{issuingQuote.fee_quote.total} {issuingQuote.fee_quote.currency}</strong>{issuingQuote.fee_quote.lines?.map((line) => <small key={line.code}>{line.label}: {line.amount} {line.currency}</small>)}</div> : null}
+                  <div className="quickActions">
+                    <button type="button" onClick={() => quoteIssuingCard('physical')} disabled={bankLoading}><CreditCard size={18} /> Devis physique</button>
+                    <button type="button" onClick={() => issueExternalCard('virtual')} disabled={bankLoading}><CreditCard size={18} /> Créer virtuelle</button>
+                    <button type="button" onClick={() => issueExternalCard('physical')} disabled={bankLoading}><CreditCard size={18} /> Commander physique</button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="card formCard wide">
+              <h2>Sheik</h2>
+              <div className="sheikLayout">
+                <div className={'sheikBanknote mood-' + (sheikForm.mood || sheikResult?.mood || 'rainbow')}>
+                  <div className="sheikWatermark">iTani</div>
+                  <div className="sheikSerial">{sheikResult?.token?.token_id || sheikResult?.reference || 'SHEIK-TOKEN'}</div>
+                  <div className="sheikAmount"><span>{sheikForm.amount || sheikResult?.amount || '0.00'}</span><b>{sheikForm.currency || sheikResult?.currency || 'EUR'}</b></div>
+                  <div className="sheikPortrait"><img src={sheikPortraitUrl || sheikPortraitPremium?.portrait_url || sheikResult?.portrait_url || '/sheik-portrait.jpg'} alt="Portrait Sheik" /></div>
+                  <div className="sheikArboreal" />
+                  <div className="sheikSeal">∞</div>
+                  <div className="sheikFooter"><span>{sheikForm.beneficiary_name || sheikResult?.beneficiary_name || 'Bénéficiaire'}</span><strong>AUCUNE EXPIRATION</strong></div>
+                </div>
+                <form className="stackedForm" onSubmit={createSheik}>
+                  <label>Montant retenu</label>
+                  <div className="amountInput">
+                    <input value={sheikForm.amount} onChange={(event) => setSheikForm({ ...sheikForm, amount: event.target.value })} inputMode="decimal" placeholder="0.00" />
+                    <span>{sheikForm.currency}</span>
+                  </div>
+                  <label>Devise</label>
+                  <input value={sheikForm.currency} onChange={(event) => setSheikForm({ ...sheikForm, currency: event.target.value.toUpperCase() })} placeholder="EUR" />
+                  <label>Bénéficiaire email</label>
+                  <input value={sheikForm.beneficiary_email} onChange={(event) => setSheikForm({ ...sheikForm, beneficiary_email: event.target.value })} placeholder="beneficiaire@email.com" />
+                  <label>Nom bénéficiaire</label>
+                  <input value={sheikForm.beneficiary_name} onChange={(event) => setSheikForm({ ...sheikForm, beneficiary_name: event.target.value })} placeholder="Nom ou enfant" />
+                  <label>Date d’encaissement</label>
+                  <input type="datetime-local" value={sheikForm.available_at} onChange={(event) => setSheikForm({ ...sheikForm, available_at: event.target.value })} />
+                  <label>Mood univers</label>
+                  <div className="moodGrid">
+                    {sheikMoods.map((mood) => <button className={sheikForm.mood === mood.id ? 'active' : ''} type="button" key={mood.id} onClick={() => setSheikForm({ ...sheikForm, mood: mood.id })}>{mood.label}</button>)}
+                  </div>
+                  <label>Message</label>
+                  <textarea value={sheikForm.memo} onChange={(event) => setSheikForm({ ...sheikForm, memo: event.target.value })} placeholder="Cadeau différé, majorité, attente d’encaissement..." />
+                  <label>Tête personnalisée</label>
+                  <input value={sheikPortraitUrl} onChange={(event) => setSheikPortraitUrl(event.target.value)} placeholder="https://.../portrait.jpg" />
+                  <div className="ratePanel"><span>Option portrait</span><strong>{sheikPortraitPremium?.active ? 'ACTIVE' : '1987 EUR'}</strong><small>Payable une seule fois pour tous les Sheik futurs.</small></div>
+                  <div className="quickActions">
+                    <button type="button" onClick={requestSheikPortraitPremium} disabled={bankLoading || sheikPortraitPremium?.active}>Demander l’option</button>
+                    <button type="button" onClick={updateSheikPortraitPremium} disabled={bankLoading || !sheikPortraitPremium?.active}>Mettre à jour</button>
+                  </div>
+                  <button className="primaryAction" type="submit" disabled={bankLoading}>Émettre le Sheik <Landmark size={18} /></button>
+                </form>
+                <form className="stackedForm" onSubmit={redeemSheik}>
+                  <label>Référence ou ID Sheik</label>
+                  <input value={sheikRedeemForm.sheik_id} onChange={(event) => setSheikRedeemForm({ ...sheikRedeemForm, sheik_id: event.target.value })} placeholder="SHEIK-..." />
+                  <label>Code d’encaissement</label>
+                  <input value={sheikRedeemForm.claim_code} onChange={(event) => setSheikRedeemForm({ ...sheikRedeemForm, claim_code: event.target.value.toUpperCase() })} placeholder="Code secret" />
+                  <label>Nom livraison impression</label>
+                  <input value={sheikRedeemForm.delivery_name} onChange={(event) => setSheikRedeemForm({ ...sheikRedeemForm, delivery_name: event.target.value })} placeholder="Nom complet" />
+                  <label>Adresse livraison impression</label>
+                  <textarea value={sheikRedeemForm.delivery_address} onChange={(event) => setSheikRedeemForm({ ...sheikRedeemForm, delivery_address: event.target.value })} placeholder="Adresse pour papier plastifié souple" />
+                  {sheikResult ? <div className="ratePanel"><span>Code à transmettre</span><strong>{sheikResult.claim_code}</strong><small>{sheikResult.reference} · disponible le {new Date(sheikResult.available_at).toLocaleString()}</small><small>Token NFT: {sheikResult.token?.token_id || '-'} · {sheikResult.token?.status || 'tokenisé'}</small></div> : null}
+                  <div className="quickActions">
+                    <button type="button" onClick={requestSheikPrintPass} disabled={bankLoading}>Imprimer plastifié</button>
+                    <button className="primaryAction" type="submit" disabled={bankLoading}>Encaisser le Sheik <ArrowDownLeft size={18} /></button>
+                  </div>
+                </form>
+              </div>
+            </section>
+
+            <section className="card formCard wide">
+              <h2>Réactivation paiement différé</h2>
+              <form className="stackedForm" onSubmit={requestInstallmentReactivation}>
+                <label>Mensualité due à payer comptant</label>
+                <div className="amountInput">
+                  <input value={installmentReactivationForm.monthly_due} onChange={(event) => setInstallmentReactivationForm({ ...installmentReactivationForm, monthly_due: event.target.value })} inputMode="decimal" placeholder="0.00" />
+                  <span>EUR</span>
+                </div>
+                <label>Moyen de paiement</label>
+                <select value={installmentReactivationForm.payment_method} onChange={(event) => setInstallmentReactivationForm({ ...installmentReactivationForm, payment_method: event.target.value })}>
+                  <option value="card">CB</option>
+                  <option value="crypto">Crypto hors iTani</option>
+                </select>
+                {installmentReactivationForm.payment_method === 'crypto' ? <>
+                  <label>Crypto</label>
+                  <select value={installmentReactivationForm.crypto_asset} onChange={(event) => setInstallmentReactivationForm({ ...installmentReactivationForm, crypto_asset: event.target.value })}>
+                    <option value="BTC">BTC</option>
+                    <option value="ETH">ETH</option>
+                    <option value="USDT">USDT</option>
+                  </select>
+                </> : null}
+                <label>Message</label>
+                <textarea value={installmentReactivationForm.reason} onChange={(event) => setInstallmentReactivationForm({ ...installmentReactivationForm, reason: event.target.value })} placeholder="Expliquez brièvement l’incident et votre demande" />
+                <div className="ratePanel"><span>Frais réactivation</span><strong>100 EUR</strong><small>Après validation du paiement comptant, l’ancienne carte est remplacée et le droit peut être rétabli avec majoration.</small></div>
+                <button className="primaryAction" type="submit" disabled={bankLoading}>Demander la réactivation <ArrowUpRight size={18} /></button>
+              </form>
+            </section>
+
+            <section className="card formCard">
+              <h2>Carte physique</h2>
+              <form onSubmit={requestPhysicalCard}>
+                <label>Nom du porteur</label>
+                <input value={cardAddress.full_name} onChange={(event) => setCardAddress({ ...cardAddress, full_name: event.target.value })} placeholder="Nom complet" />
+                <label>Adresse</label>
+                <input value={cardAddress.line1} onChange={(event) => setCardAddress({ ...cardAddress, line1: event.target.value })} placeholder="Adresse" />
+                <input value={cardAddress.line2} onChange={(event) => setCardAddress({ ...cardAddress, line2: event.target.value })} placeholder="Complément" />
+                <div className="formSplit">
+                  <input value={cardAddress.postal_code} onChange={(event) => setCardAddress({ ...cardAddress, postal_code: event.target.value })} placeholder="Code postal" />
+                  <input value={cardAddress.city} onChange={(event) => setCardAddress({ ...cardAddress, city: event.target.value })} placeholder="Ville" />
+                </div>
+                <div className="formSplit">
+                  <input value={cardAddress.country} onChange={(event) => setCardAddress({ ...cardAddress, country: event.target.value.toUpperCase() })} placeholder="FR" />
+                  <input value={cardAddress.phone} onChange={(event) => setCardAddress({ ...cardAddress, phone: event.target.value })} placeholder="Téléphone" />
+                </div>
+                <button className="primaryAction" type="submit" disabled={bankLoading}>Demander la carte <CreditCard size={18} /></button>
+              </form>
+            </section>
+
+            <section className="card wide">
+              <h2>Historique compte</h2>
+              <ChainList items={bankData?.statement || []} empty="Aucune opération bancaire interne." />
             </section>
           </div>
         ) : null}
