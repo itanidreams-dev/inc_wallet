@@ -9,3 +9,7 @@ wallets.json
 *.log
 .DS_Store
 .wrangler/
+.metani-auto-deployed-head
+*.bak
+*.bak-*
+*.tmp
