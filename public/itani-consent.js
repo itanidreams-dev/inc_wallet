@@ -3,7 +3,7 @@
   const KEY = 'itani_consent_v1';
   const COOKIE = 'itani_consent';
   const DOMAIN = '.itaninetworkchain.com';
-  const LEGAL_URL = 'https://myelbox.itaninetworkchain.com/legal.html';
+  const LEGAL_URL = 'https://www.myelbox.uk/legal.html';
   const REQUIRED_DELAY = 21;
 
   function savedConsent() {
