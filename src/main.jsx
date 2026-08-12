@@ -1803,7 +1803,7 @@ function App() {
               <InfoRow label="IBAN interne" value={bankData?.account?.rib_reference?.iban_formatted || bankData?.account?.rib_reference?.iban || '-'} />
               <InfoRow label="RIB interne" value={bankData?.account?.rib_reference?.rib || bankData?.account?.rib_reference?.reference || '-'} />
               <InfoRow label="BIC/SWIFT" value={bankData?.account?.rib_reference?.bic || bankData?.account?.rib_reference?.swift || '-'} />
-              <InfoRow label="Usage" value={bankData?.account?.rib_reference?.iban_scope === 'metani_internal_bank_closed_loop' ? 'Compte bancaire interne Metani - rails externes soumis aux droits EMI/partenaire' : (bankData?.account?.rib_reference?.status || '-')} />
+              <InfoRow label="Usage" value={bankData?.account?.rib_reference?.usage === 'internal_metani_bank_wallet_transfers_only' || bankData?.account?.rib_reference?.iban_scope?.includes('metani_internal') ? 'Compte bancaire interne Metani WW - non SEPA/SWIFT externe tant que EMI ou banque partenaire n\'a pas emis un vrai IBAN' : (bankData?.account?.rib_reference?.status || '-')} />
               <InfoRow label="KYC" value={bankData?.account?.user?.kyc_status || '-'} />
             </section>
 
