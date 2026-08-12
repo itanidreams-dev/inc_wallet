@@ -68,7 +68,7 @@ const ITANI_PER_BTC = Number(import.meta.env.VITE_ITANI_BTC_RATE || 10000);
 const SATOSHIS_PER_BTC = 100000000;
 const BRIDGE_READ_ONLY = true;
 const MARKET_NOT_LISTED = 'Non coté';
-const MARKET_LIVE = import.meta.env.VITE_ITANI_MARKET_LIVE === 'true';
+const MARKET_LIVE = import.meta.env.VITE_ITANI_MARKET_LIVE !== 'false';
 const sheikMoods = [
   { id: 'rainbow', label: 'Rainbow' },
   { id: 'noir', label: 'Noir' },
