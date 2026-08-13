@@ -676,33 +676,43 @@ function App() {
     };
   }, [walletAddress, walletEvmAddress]);
 
-  const rpcItaniBalance = walletInfo?.balance_formatted ? Number(parseBalanceText(walletInfo.balance_formatted)) : null;
   const baseMetaniAssets = useMemo(() => sortMetaniAssets(metaniWallet?.assets || []), [metaniWallet]);
+  const baseItaniCandidates = [baseMetaniAssets.find((asset) => String(asset.currency || asset.code || '').toUpperCase() === 'ITANI'), baseMetaniAssets.find((asset) => String(asset.currency || asset.code || '').toUpperCase() === 'ITN')].filter(Boolean);
+  const baseOfficialItaniAsset = baseItaniCandidates.find((asset) => Number(asset.total_balance ?? asset.display_balance ?? asset.ledger_balance ?? asset.onchain_balance ?? 0) > 0) || baseItaniCandidates[0] || null;
+  const walletRpcItaniBalance = walletInfo?.balance_formatted ? Number(parseBalanceText(walletInfo.balance_formatted)) : null;
+  const aggregatedItaniBalance = baseOfficialItaniAsset
+    ? Number(baseOfficialItaniAsset.total_balance ?? baseOfficialItaniAsset.display_balance ?? baseOfficialItaniAsset.ledger_balance ?? baseOfficialItaniAsset.onchain_balance ?? 0)
+    : null;
+  const authoritativeItaniBalance = Number.isFinite(aggregatedItaniBalance) && aggregatedItaniBalance > 0
+    ? aggregatedItaniBalance
+    : Number.isFinite(walletRpcItaniBalance)
+      ? walletRpcItaniBalance
+      : null;
   const metaniAssets = useMemo(() => baseMetaniAssets.map((asset) => {
     const code = String(asset.currency || asset.code || '').toUpperCase();
-    if (!['ITANI', 'ITN'].includes(code) || !Number.isFinite(rpcItaniBalance)) return asset;
+    if (!['ITANI', 'ITN'].includes(code) || !Number.isFinite(authoritativeItaniBalance)) return asset;
     return {
       ...asset,
-      total_balance: rpcItaniBalance,
-      display_balance: rpcItaniBalance,
-      onchain_balance: rpcItaniBalance,
-      onchain: { ...(asset.onchain || {}), available: true, source: 'eth_getBalance' },
+      total_balance: authoritativeItaniBalance,
+      display_balance: authoritativeItaniBalance,
+      onchain_balance: authoritativeItaniBalance,
+      onchain: { ...(asset.onchain || {}), available: true, source: aggregatedItaniBalance > 0 ? asset.onchain?.source || 'metani_aggregator' : 'eth_getBalance' },
     };
-  }), [baseMetaniAssets, rpcItaniBalance]);
+  }), [baseMetaniAssets, authoritativeItaniBalance, aggregatedItaniBalance]);
   const metaniAssetByCurrency = useMemo(() => Object.fromEntries(metaniAssets.map((asset) => [String(asset.currency || asset.code || '').toUpperCase(), asset])), [metaniAssets]);
   const officialItaniCandidates = [metaniAssetByCurrency.ITANI, metaniAssetByCurrency.ITN].filter(Boolean);
   const officialItaniAsset = officialItaniCandidates.find((asset) => Number(asset.total_balance ?? asset.display_balance ?? asset.ledger_balance ?? asset.onchain_balance ?? 0) > 0) || officialItaniCandidates[0] || null;
-  const officialItaniBalance = Number.isFinite(rpcItaniBalance)
-    ? rpcItaniBalance
+  const officialItaniBalance = Number.isFinite(authoritativeItaniBalance)
+    ? authoritativeItaniBalance
     : officialItaniAsset
       ? Number(officialItaniAsset.total_balance ?? officialItaniAsset.display_balance ?? officialItaniAsset.ledger_balance ?? officialItaniAsset.onchain_balance ?? 0)
       : Number(balanceValue || 0);
-  const officialItaniDisplay = officialItaniAsset || Number.isFinite(rpcItaniBalance)
+  const officialItaniDisplay = officialItaniAsset || Number.isFinite(authoritativeItaniBalance)
     ? formatAssetBalance(officialItaniBalance, officialItaniAsset?.display_decimals ?? 3)
     : balanceValue;
   const officialItaniSymbol = officialItaniAsset?.symbol || nativeCurrency.symbol || 'ITANI';
-  const officialItaniSource = Number.isFinite(rpcItaniBalance)
-    ? `RPC officiel ${formatAssetBalance(rpcItaniBalance, officialItaniAsset?.display_decimals ?? 3)} · Ledger ${formatAssetBalance(officialItaniAsset?.wallet_balance, officialItaniAsset?.display_decimals ?? 3)} · App ${formatAssetBalance(officialItaniAsset?.app_balance, officialItaniAsset?.display_decimals ?? 3)}`
+  const officialItaniSource = Number.isFinite(authoritativeItaniBalance)
+    ? `${Number.isFinite(aggregatedItaniBalance) && aggregatedItaniBalance > 0 ? 'Agrégateur Metani' : 'RPC officiel'} ${formatAssetBalance(authoritativeItaniBalance, officialItaniAsset?.display_decimals ?? 3)} · Ledger ${formatAssetBalance(officialItaniAsset?.wallet_balance, officialItaniAsset?.display_decimals ?? 3)} · App ${formatAssetBalance(officialItaniAsset?.app_balance, officialItaniAsset?.display_decimals ?? 3)}`
     : officialItaniAsset
       ? `Ledger ${formatAssetBalance(officialItaniAsset.wallet_balance, officialItaniAsset.display_decimals ?? 3)} · App ${formatAssetBalance(officialItaniAsset.app_balance, officialItaniAsset.display_decimals ?? 3)} · Chain ${formatAssetBalance(officialItaniAsset.onchain_balance, officialItaniAsset.display_decimals ?? 3)}`
       : 'Ancien RPC direct';
