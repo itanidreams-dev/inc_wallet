@@ -109,6 +109,20 @@ function parsePaymentQrPayload(payload = '') {
   return { address, amount: '' };
 }
 
+function toEvmAddress(address = "") {
+  const value = String(address || "").trim();
+  if (/^0x[a-fA-F0-9]{40}$/.test(value)) return value.toLowerCase();
+  if (/^iT[a-fA-F0-9]{40}$/.test(value)) return "0x" + value.slice(2).toLowerCase();
+  return "";
+}
+
+function toItaniAddress(address = "") {
+  const value = String(address || "").trim();
+  if (/^iT[a-fA-F0-9]{40}$/.test(value)) return "iT" + value.slice(2).toLowerCase();
+  if (/^0x[a-fA-F0-9]{40}$/.test(value)) return "iT" + value.slice(2).toLowerCase();
+  return value;
+}
+
 function formatFiatAmount(amount, currency = 'EUR') {
   const value = Number(amount || 0);
   const normalizedCurrency = String(currency || 'EUR').toUpperCase();
@@ -315,17 +329,14 @@ function btcToSatoshis(btcAmount) {
   return Math.floor(Number(btcAmount || 0) * SATOSHIS_PER_BTC);
 }
 
-async function ensureExternalWallet(expectedAddress, options = {}) {
-  const { allowInternalMetaniSigner = false } = options;
-  const expected = String(expectedAddress || '').trim();
-  const isInternalMetaniAddress = /^iT[a-zA-Z0-9]{20,}$/.test(expected);
+async function ensureExternalWallet(expectedAddress) {
+  const expectedEvm = toEvmAddress(expectedAddress);
   if (!window.ethereum) {
-    if (allowInternalMetaniSigner && isInternalMetaniAddress) return expected;
-    throw new Error('Aucun signer EVM détecté. Ouvre inc_wallet avec MetaMask, Trust Wallet ou un navigateur wallet.');
+    throw new Error("Aucun signer EVM détecté. Ouvre Kobs avec MetaMask, Trust Wallet ou un navigateur wallet.");
   }
 
   await window.ethereum.request({
-    method: 'wallet_addEthereumChain',
+    method: "wallet_addEthereumChain",
     params: [{
       chainId: activeNetwork.chainIdHex,
       chainName: activeNetwork.chainName,
@@ -335,12 +346,12 @@ async function ensureExternalWallet(expectedAddress, options = {}) {
     }],
   });
 
-  const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+  const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
   const account = accounts?.[0];
-  if (!account) throw new Error('Aucun compte wallet autorisé.');
+  if (!account) throw new Error("Aucun compte wallet autorisé.");
 
-  if (expected?.startsWith?.('0x') && account.toLowerCase() !== expected.toLowerCase()) {
-    throw new Error('Le signer externe ne correspond pas au wallet lié au Metani ID.');
+  if (expectedEvm && account.toLowerCase() !== expectedEvm) {
+    throw new Error("Signer externe incorrect. Compte attendu: " + shorten(expectedEvm, 8, 6) + ". Compte connecté: " + shorten(account, 8, 6) + ".");
   }
 
   return account;
@@ -576,10 +587,6 @@ function App() {
   const [metaniWalletLoading, setMetaniWalletLoading] = useState(false);
   const [metaniWalletError, setMetaniWalletError] = useState('');
   const [metaniSwapForm, setMetaniSwapForm] = useState({ from_asset: 'ITANI', to_asset: 'AR', amount: '' });
-  const [walletExportForm, setWalletExportForm] = useState({ password: '', acknowledged: false });
-  const [walletExportResult, setWalletExportResult] = useState(null);
-  const [walletExportLoading, setWalletExportLoading] = useState(false);
-  const [walletExportVisible, setWalletExportVisible] = useState(false);
   const [receiveQrSvg, setReceiveQrSvg] = useState('');
   const [qrScanMessage, setQrScanMessage] = useState('');
   const [showCardSensitive, setShowCardSensitive] = useState(false);
@@ -587,6 +594,8 @@ function App() {
   const qrFileInputRef = useRef(null);
 
   const walletAddress = user?.wallet_address || user?.address || '';
+  const walletEvmAddress = user?.evm_address || walletInfo?.evm_address || metaniWallet?.blockchain?.evm_address || toEvmAddress(walletAddress);
+  const walletItaniAddress = walletAddress || toItaniAddress(walletEvmAddress);
   const displayName = user?.display_name || user?.username || user?.pseudo || 'Compte Metani';
   const balanceValue = parseBalanceText(balance);
   const btcQuote = useMemo(() => itaniToBtc(btcItaniAmount), [btcItaniAmount]);
@@ -646,7 +655,7 @@ function App() {
         alive = false;
       };
     }
-    QRCode.toString(walletAddress, {
+    QRCode.toString(walletEvmAddress || walletAddress, {
       type: 'svg',
       margin: 2,
       width: 260,
@@ -665,7 +674,7 @@ function App() {
     return () => {
       alive = false;
     };
-  }, [walletAddress]);
+  }, [walletAddress, walletEvmAddress]);
 
   const rpcItaniBalance = walletInfo?.balance_formatted ? Number(parseBalanceText(walletInfo.balance_formatted)) : null;
   const baseMetaniAssets = useMemo(() => sortMetaniAssets(metaniWallet?.assets || []), [metaniWallet]);
@@ -783,48 +792,6 @@ function App() {
     });
   }
 
-  async function exportMetaniWallet(event) {
-    event.preventDefault();
-    setError('');
-    setTxHash('');
-    setWalletExportResult(null);
-    if (!walletExportForm.acknowledged) {
-      setError('Confirme d’abord que tu ne partageras jamais cette clé.');
-      return;
-    }
-    if (!walletExportForm.password) {
-      setError('Mot de passe Metani requis pour afficher la clé.');
-      return;
-    }
-    const token = localStorage.getItem(SSO_TOKEN_KEY) || localStorage.getItem(METANI_SHARED_SSO_TOKEN_KEY);
-    if (!token) {
-      setError('Session Metani requise.');
-      return;
-    }
-    setWalletExportLoading(true);
-    try {
-      const data = await fetchJson(METANI_SSO + '/wallet/export', {
-        method: 'POST',
-        headers: { Authorization: 'Bearer ' + token },
-        body: JSON.stringify({ password: walletExportForm.password }),
-      });
-      setWalletExportResult(data);
-      setWalletExportVisible(false);
-      setWalletExportForm({ password: '', acknowledged: true });
-      setTxHash('Clé exportée dans Kobs. Ne la partage jamais dans un message.');
-      window.setTimeout(() => setWalletExportResult(null), 120000);
-    } catch (err) {
-      setError(err.message || 'Export wallet impossible.');
-    } finally {
-      setWalletExportLoading(false);
-    }
-  }
-
-  async function copyExportedPrivateKey() {
-    if (!walletExportResult?.private_key) return;
-    await navigator.clipboard.writeText(walletExportResult.private_key);
-    setTxHash('Clé privée copiée. Importe-la dans MetaMask puis ferme cet écran.');
-  }
   async function refreshMetaniWallet(currency = preferredFiatCurrency) {
     setMetaniWalletLoading(true);
     try {
@@ -1030,7 +997,7 @@ function App() {
 
   async function connectSigner() {
     try {
-      const account = await ensureExternalWallet(walletAddress, { allowInternalMetaniSigner: true });
+      const account = await ensureExternalWallet(walletEvmAddress || walletAddress);
       setExternalAccount(account);
       setError('');
       writeActivity({ type: 'signer', title: 'Signer externe connecté', detail: shorten(account) });
@@ -1079,7 +1046,7 @@ function App() {
 
     try {
       if (!recipient || !amount) throw new Error('Adresse destinataire et montant requis.');
-      const from = await ensureExternalWallet(walletAddress);
+      const from = await ensureExternalWallet(walletEvmAddress || walletAddress);
       setStatus('signature');
       const hash = await window.ethereum.request({
         method: 'eth_sendTransaction',
@@ -1104,7 +1071,7 @@ function App() {
     }
 
     try {
-      const from = await ensureExternalWallet(walletAddress);
+      const from = await ensureExternalWallet(walletEvmAddress || walletAddress);
       const token = localStorage.getItem(SSO_TOKEN_KEY) || localStorage.getItem(METANI_SHARED_SSO_TOKEN_KEY);
       const amountWei = toWeiString(stakeAmount);
       const stakeAddress = walletAddress || from;
@@ -1404,7 +1371,7 @@ function App() {
     }
 
     try {
-      const from = await ensureExternalWallet(walletAddress);
+      const from = await ensureExternalWallet(walletEvmAddress || walletAddress);
       const amountWei = toWeiString(btcItaniAmount);
       const address = walletAddress || from;
       setStatus('signature achat BTC');
@@ -1582,8 +1549,9 @@ function App() {
             <section className="card quickWalletCard">
               <h2>Wallet iTani</h2>
               <div className="metric"><span>Metani ID</span><strong>{user.pseudo || user.username}</strong></div>
-              <div className="metric"><span>Adresse</span><strong>{shorten(walletAddress, 14, 10)}</strong></div>
-              <div className="metric"><span>Signer autorisé</span><strong>{externalAccount ? (externalAccount === walletAddress ? 'Metani interne' : shorten(externalAccount)) : 'Non connecté'}</strong></div>
+              <div className="metric"><span>Adresse iTani</span><strong>{shorten(walletItaniAddress, 14, 10)}</strong></div>
+              <div className="metric"><span>Adresse EVM</span><strong>{walletEvmAddress ? shorten(walletEvmAddress, 10, 8) : 'Non compatible EVM'}</strong></div>
+              <div className="metric"><span>Signer autorisé</span><strong>{externalAccount ? shorten(externalAccount, 10, 8) : 'Non connecté'}</strong></div>
               <button className="primaryAction compact" type="button" onClick={connectSigner}>{externalAccount ? 'Signer autorisé' : 'Connecter signer'}</button>
             </section>
 
@@ -1663,7 +1631,8 @@ function App() {
             </section>
             <section className="card">
               <h2>Données wallet</h2>
-              <InfoRow label="Adresse" value={walletAddress} />
+              <InfoRow label="Adresse iTani" value={walletItaniAddress} />
+              <InfoRow label="Adresse EVM" value={walletEvmAddress || 'Non compatible EVM'} />
               <InfoRow label="Solde officiel Kobs" value={`${officialItaniDisplay} ${officialItaniSymbol}`} />
               <InfoRow label="Source solde" value={officialItaniSource} />
               <InfoRow label="Transactions envoyées" value={String(walletInfo?.tx_sent_count ?? walletInfo?.sent_count ?? '-')} />
@@ -1766,32 +1735,14 @@ function App() {
             <div className="bankTooltipAnchor wide" aria-live="polite">
             {selectedBankTool === 'bank-export-metamask' ? (
             <section id="bank-export-metamask" className="card formCard wide bankFunction bankTooltipPanel">
-              <h2>Export MetaMask</h2>
-              <p>Affiche la clé privée uniquement dans Kobs, après mot de passe Metani. Elle n’est pas envoyée dans le chat, pas sauvegardée dans le navigateur, et disparaît automatiquement.</p>
-              <form className="stackedForm" onSubmit={exportMetaniWallet}>
-                <label>Mot de passe Metani</label>
-                <input type="password" value={walletExportForm.password} onChange={(event) => setWalletExportForm({ ...walletExportForm, password: event.target.value })} placeholder="Mot de passe du compte" autoComplete="current-password" />
-                <label className="checkLine">
-                  <input type="checkbox" checked={walletExportForm.acknowledged} onChange={(event) => setWalletExportForm({ ...walletExportForm, acknowledged: event.target.checked })} />
-                  <span>Je comprends que toute personne possédant cette clé peut contrôler le wallet.</span>
-                </label>
-                <button className="primaryAction" type="submit" disabled={walletExportLoading}>
-                  {walletExportLoading ? <Loader2 className="spin" size={18} /> : <LockKeyhole size={18} />} Afficher la clé sécurisée
-                </button>
-              </form>
-              {walletExportResult?.private_key ? (
-                <div className="exportSecretBox">
-                  <div className="metric"><span>Adresse</span><strong>{shorten(walletExportResult.evm_address || walletExportResult.address, 12, 10)}</strong></div>
-                  <label>Clé privée</label>
-                  <div className="secretReveal">
-                    <input readOnly value={walletExportVisible ? walletExportResult.private_key : '•'.repeat(Math.min(64, walletExportResult.private_key.length))} />
-                    <button type="button" onClick={() => setWalletExportVisible(!walletExportVisible)}>{walletExportVisible ? <EyeOff size={17} /> : <Eye size={17} />}</button>
-                    <button type="button" onClick={copyExportedPrivateKey}><Copy size={17} /></button>
-                  </div>
-                  <small>{walletExportResult.warning || 'Importe cette clé uniquement dans ton wallet personnel.'}</small>
-                  <small>Mnemonic: {walletExportResult.mnemonic_available ? 'disponible' : 'non stocké par Metani pour ce wallet'}</small>
-                </div>
-              ) : null}
+              <h2>Connexion MetaMask</h2>
+              <p>Kobs utilise un signer externe Web3. Les clés privées restent dans MetaMask, Trust Wallet ou le navigateur wallet; Kobs vérifie seulement que le compte connecté correspond à l adresse EVM du wallet Metani.</p>
+              <div className="metric"><span>Adresse iTani</span><strong>{walletItaniAddress || "-"}</strong></div>
+              <div className="metric"><span>Adresse EVM attendue</span><strong>{walletEvmAddress || "Non compatible EVM"}</strong></div>
+              <div className="metric"><span>Signer connecté</span><strong>{externalAccount ? shorten(externalAccount, 10, 8) : "Non connecté"}</strong></div>
+              <button className="primaryAction" type="button" onClick={connectSigner}>
+                <LockKeyhole size={18} /> Connecter le signer Web3
+              </button>
             </section>
 
             ) : null}
@@ -2095,7 +2046,7 @@ function App() {
                 <Wallet size={54} />
               )}
             </div>
-            <code>{walletAddress}</code>
+            <code>{walletEvmAddress || walletAddress}</code>
             <button className="primaryAction compact" type="button" onClick={copyAddress}>Copier l’adresse <Copy size={17} /></button>
           </section>
         ) : null}
