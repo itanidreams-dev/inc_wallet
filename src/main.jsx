@@ -587,6 +587,10 @@ function App() {
   const [metaniWalletLoading, setMetaniWalletLoading] = useState(false);
   const [metaniWalletError, setMetaniWalletError] = useState('');
   const [metaniSwapForm, setMetaniSwapForm] = useState({ from_asset: 'ITANI', to_asset: 'AR', amount: '' });
+  const [keyRecoveryForm, setKeyRecoveryForm] = useState({ password: '', acknowledged: false });
+  const [keyRecoveryResult, setKeyRecoveryResult] = useState(null);
+  const [keyRecoveryLoading, setKeyRecoveryLoading] = useState(false);
+  const [keyRecoveryVisible, setKeyRecoveryVisible] = useState(false);
   const [receiveQrSvg, setReceiveQrSvg] = useState('');
   const [qrScanMessage, setQrScanMessage] = useState('');
   const [showCardSensitive, setShowCardSensitive] = useState(false);
@@ -840,6 +844,57 @@ function App() {
     } catch (err) {
       setError(err.message || 'Swap Metani impossible.');
     }
+  }
+
+  async function recoverMetaniWalletSecret(event) {
+    event.preventDefault();
+    setError('');
+    setTxHash('');
+    setKeyRecoveryResult(null);
+    if (!keyRecoveryForm.acknowledged) {
+      setError('Confirme d abord que tu comprends le risque de controle total du wallet.');
+      return;
+    }
+    if (!keyRecoveryForm.password) {
+      setError('Mot de passe Metani requis.');
+      return;
+    }
+    const token = localStorage.getItem(SSO_TOKEN_KEY) || localStorage.getItem(METANI_SHARED_SSO_TOKEN_KEY);
+    if (!token) {
+      setError('Session Metani requise.');
+      return;
+    }
+    setKeyRecoveryLoading(true);
+    try {
+      const data = await fetchJson(METANI_SSO + '/wallet/export', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ password: keyRecoveryForm.password }),
+      });
+      const recoveredSecret = data?.['private_key'] || '';
+      if (!recoveredSecret) throw new Error(data?.message || data?.error || 'Cle wallet indisponible.');
+      setKeyRecoveryResult({
+        address: data.evm_address || data.address || walletEvmAddress || walletAddress,
+        custody_mode: data.custody_mode || 'metani',
+        recovered_secret: recoveredSecret,
+        warning: data.warning || 'Importe cette cle uniquement dans ton wallet personnel.',
+      });
+      setKeyRecoveryForm({ password: '', acknowledged: true });
+      setKeyRecoveryVisible(false);
+      setTxHash('Cle recuperee dans Kobs. Importe-la dans MetaMask ou Trust Wallet, puis ferme cet ecran.');
+      window.setTimeout(() => setKeyRecoveryResult(null), 120000);
+    } catch (err) {
+      setError(err.message || 'Recuperation de cle impossible.');
+    } finally {
+      setKeyRecoveryLoading(false);
+    }
+  }
+
+  async function copyRecoveredWalletSecret() {
+    const secret = keyRecoveryResult?.recovered_secret;
+    if (!secret) return;
+    await navigator.clipboard.writeText(secret);
+    setTxHash('Cle copiee temporairement. Importe-la dans ton wallet, puis efface le presse-papiers si possible.');
   }
 
   async function refreshBankData() {
@@ -1745,14 +1800,38 @@ function App() {
             <div className="bankTooltipAnchor wide" aria-live="polite">
             {selectedBankTool === 'bank-export-metamask' ? (
             <section id="bank-export-metamask" className="card formCard wide bankFunction bankTooltipPanel">
-              <h2>Connexion MetaMask</h2>
-              <p>Kobs utilise un signer externe Web3. Les clés privées restent dans MetaMask, Trust Wallet ou le navigateur wallet; Kobs vérifie seulement que le compte connecté correspond à l adresse EVM du wallet Metani.</p>
+              <h2>Connexion et récupération MetaMask</h2>
+              <p>Kobs connecte MetaMask, Trust Wallet ou un navigateur wallet. Si le wallet a été généré par Metani, tu peux aussi récupérer la clé une seule fois après mot de passe Metani pour l importer dans ton wallet personnel.</p>
               <div className="metric"><span>Adresse iTani</span><strong>{walletItaniAddress || "-"}</strong></div>
               <div className="metric"><span>Adresse EVM attendue</span><strong>{walletEvmAddress || "Non compatible EVM"}</strong></div>
               <div className="metric"><span>Signer connecté</span><strong>{externalAccount ? shorten(externalAccount, 10, 8) : "Non connecté"}</strong></div>
               <button className="primaryAction" type="button" onClick={connectSigner}>
                 <LockKeyhole size={18} /> Connecter le signer Web3
               </button>
+              <form className="stackedForm keyRecoveryForm" onSubmit={recoverMetaniWalletSecret}>
+                <label>Mot de passe Metani</label>
+                <input type="password" value={keyRecoveryForm.password} onChange={(event) => setKeyRecoveryForm({ ...keyRecoveryForm, password: event.target.value })} placeholder="Mot de passe du compte" autoComplete="current-password" />
+                <label className="checkLine">
+                  <input type="checkbox" checked={keyRecoveryForm.acknowledged} onChange={(event) => setKeyRecoveryForm({ ...keyRecoveryForm, acknowledged: event.target.checked })} />
+                  <span>Je comprends que toute personne possédant cette clé peut contrôler le wallet.</span>
+                </label>
+                <button className="secondaryAction" type="submit" disabled={keyRecoveryLoading}>
+                  {keyRecoveryLoading ? <Loader2 className="spin" size={18} /> : <Eye size={18} />} Récupérer la clé du wallet
+                </button>
+              </form>
+              {keyRecoveryResult?.recovered_secret ? (
+                <div className="exportSecretBox">
+                  <div className="metric"><span>Adresse importable</span><strong>{shorten(keyRecoveryResult.address, 12, 10)}</strong></div>
+                  <label>Clé wallet</label>
+                  <div className="secretReveal">
+                    <input readOnly value={keyRecoveryVisible ? keyRecoveryResult.recovered_secret : '•'.repeat(Math.min(64, keyRecoveryResult.recovered_secret.length))} />
+                    <button type="button" onClick={() => setKeyRecoveryVisible(!keyRecoveryVisible)}>{keyRecoveryVisible ? <EyeOff size={17} /> : <Eye size={17} />}</button>
+                    <button type="button" onClick={copyRecoveredWalletSecret}><Copy size={17} /></button>
+                  </div>
+                  <small>{keyRecoveryResult.warning}</small>
+                  <small>Affichage temporaire: la clé disparaît automatiquement après 2 minutes.</small>
+                </div>
+              ) : null}
             </section>
 
             ) : null}
