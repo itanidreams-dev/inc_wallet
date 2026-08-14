@@ -882,7 +882,7 @@ function App() {
       setKeyRecoveryForm({ password: '', acknowledged: true });
       setKeyRecoveryVisible(false);
       setTxHash('Cle recuperee dans Kobs. Importe-la dans MetaMask ou Trust Wallet, puis ferme cet ecran.');
-      window.setTimeout(() => setKeyRecoveryResult(null), 120000);
+      window.setTimeout(() => setKeyRecoveryResult(null), 60000);
     } catch (err) {
       setError(err.message || 'Recuperation de cle impossible.');
     } finally {
@@ -1829,7 +1829,7 @@ function App() {
                     <button type="button" onClick={copyRecoveredWalletSecret}><Copy size={17} /></button>
                   </div>
                   <small>{keyRecoveryResult.warning}</small>
-                  <small>Affichage temporaire: la clé disparaît automatiquement après 2 minutes.</small>
+                  <small>Affichage temporaire: la clé disparaît automatiquement après 1 minute.</small>
                 </div>
               ) : null}
             </section>
